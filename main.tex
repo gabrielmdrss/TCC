@@ -1,0 +1,270 @@
+\documentclass[portuguese,12pt,oneside,a4paper]{book}
+
+\input{preambulo}
+
+% ---------------------------------------------------------------------------- %
+% Corpo do texto
+\begin{document}
+\frontmatter
+% cabeçalho para as páginas das seções anteriores ao capítulo 1 (frontmatter)
+\fancyhead[RO]{{\footnotesize\rightmark}\hspace{2em}\thepage}
+\setcounter{tocdepth}{2}
+\fancyhead[LE]{\thepage\hspace{2em}\footnotesize{\leftmark}}
+\fancyhead[RE,LO]{}
+\fancyhead[RO]{{\footnotesize\rightmark}\hspace{2em}\thepage}
+
+\onehalfspacing  % espaçamento
+
+% ---------------------------------------------------------------------------- %
+% Capa
+
+\thispagestyle{empty}
+\begin{center}
+    \includegraphics[scale=0.4]{ifpb} \\
+    \Large Instituto Federal de Educação, Ciência e Tecnologia da Paraíba\\
+    Campus Campina Grande\\
+    Coordenação do Curso Superior de Tecnologia em Telemática\\
+
+    \vspace*{4cm}
+
+    \textbf{\LARGE{IMPLEMENTAÇÃO E VALIDAÇÃO DE UMA MÁQUINA VIRTUAL DE LÓGICA LADDER E AGNÓSTICA DE HARDWARE BASEADA EM MODEL-BASED DESIGN}}\\
+
+    \vspace*{3.5cm}
+    \Large{GABRIEL DOMINGOS DE MEDEIROS}
+
+    \vskip 4cm
+
+    Orientador: FAGNER DE ARAÚJO PEREIRA\\
+
+    \vskip 4cm
+
+    \normalsize{Campina Grande, fevereiro de 2013} \\
+    \textregistered Nome do aluno
+
+\end{center}
+
+\newpage
+
+\thispagestyle{empty}
+\begin{center}
+    \includegraphics[scale=0.4]{ifpb} \\
+    \Large Instituto Federal de Educação, Ciência e Tecnologia da Paraíba\\
+    Campus Campina Grande\\
+    Coordenação do Cursos Superior de Tecnologia em Telemática\\
+
+    \vspace*{4cm}
+
+    \textbf{\LARGE{IMPLEMENTAÇÃO E VALIDAÇÃO DE UMA MÁQUINA VIRTUAL DE LÓGICA LADDER E AGNÓSTICA DE HARDWARE BASEADA EM MODEL-BASED DESIGN}}\\
+
+    \vspace*{2cm}
+    \Large{GABRIEL DOMINGOS DE MEDEIROS}
+
+    \vskip 1.5cm
+\end{center}
+
+
+
+    \begin{flushright}
+		\begin{minipage}[left]{0.5\linewidth}
+
+			Monografia apresentada à Coordenação do Curso de Telemática do IFPB - Campus Campina Grande, como requisito parcial para conclusão do curso de Tecnologia em Telemática.\\
+
+		\end{minipage}
+
+   	\end{flushright}
+
+
+\begin{center}
+
+    \vskip 2cm
+    Orientador: Fagner de Araújo Pereira\\
+    \vskip 2.0cm
+
+    \normalsize{Campina Grande, fevereiro de 2013}
+\end{center}
+
+\newpage
+
+% ---------------------------------------------------------------------------- %
+% FICHA CATALOGRÁFICA (VERSÃO FINAL/CORRIGDA)
+% ---------------------------------------------------------------------------- %
+
+%\includepdf{ficha-catalografica.pdf} %Incluir a ficha fornecida pela biblioteca do IFPB
+
+
+% ---------------------------------------------------------------------------- %
+% Página de rosto (só para a versão final)
+% ---------------------------------------------------------------------------- %
+
+\newpage
+\thispagestyle{empty}
+    \begin{center}
+
+
+	    \textbf{\LARGE{IMPLEMENTAÇÃO E VALIDAÇÃO DE UMA MÁQUINA VIRTUAL DE LÓGICA LADDER E AGNÓSTICA DE HARDWARE BASEADA EM MODEL-BASED DESIGN}}\\
+
+        \vspace*{3cm}
+
+    	\textbf{GABRIEL DOMINGOS DE MEDEIROS}
+
+    	\vskip 3cm
+
+
+		\rule{10cm}{0.1mm}
+		FAGNER DE ARAÚJO PEREIRA\\
+		Orientador
+
+    	\vskip 2cm
+
+		\rule{10cm}{0.1mm}
+		XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\\
+		Membro da Banca
+
+    	\vskip 2cm
+
+		\rule{10cm}{0.1mm}
+		XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\\
+		Membro da Banca
+
+		\vskip 3cm
+
+		Campina Grande, Paraíba, Brasil\\
+		Fevereiro/2013
+
+    \end{center}
+\pagebreak
+
+\newpage
+\thispagestyle{empty}
+
+
+        \vspace*{20.0cm}
+
+        \begin{flushright}
+			Dedicatória (OPCIONAL)
+        \end{flushright}
+
+
+
+\pagebreak
+
+\newpage
+\thispagestyle{empty}
+
+
+        \vspace*{20.0cm}
+
+        \begin{flushright}
+
+             Alguma frase/pensamento (OPCIONAL)\\
+             Autor\\
+
+
+        \end{flushright}
+
+
+
+\pagebreak
+
+
+
+
+% % ---------------------------------------------------------------------------- %
+% % Agradecimentos
+
+\chapter*{Agradecimentos}
+
+
+	XXXXXXXXXXXXXXXXXXXXXX
+
+
+\pagebreak
+
+
+% ---------------------------------------------------------------------------- %
+% Resumo
+
+\chapter*{Resumo}
+	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.\\
+
+\noindent \textbf{Palavras-chave:} XXXXXXXXXXXXXXXXXXX.
+
+
+\pagebreak
+
+
+% ---------------------------------------------------------------------------- %
+
+ \chapter*{Abstract}
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.\\
+
+ \noindent \textbf{Keywords:} XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.
+
+
+
+% ---------------------------------------------------------------------------- %
+% Sumário
+\tableofcontents    % imprime o sumário
+
+
+% ---------------------------------------------------------------------------- %
+\chapter{Lista de Abreviaturas}
+\begin{tabular}{ll}
+	ARM 	& \textit{Advanced RISC Machine} \\
+	CLP		& Controlador Lógico Programável \\
+	FBD		& \textit{Function Block Diagram} \\
+	GPIO	& \textit{General Purpose Input/Output} \\
+	HAL		& \textit{Hardware Abstraction Layer} \\
+	IEC		& \textit{International Electrotechnical Commission} \\
+	IL		& \textit{Instruction List} \\
+	IoT		& \textit{Internet of Things} \\
+	ISA		& \textit{Instruction Set Architecture} \\
+	LD		& \textit{Ladder Diagram} \\
+	POSIX	& \textit{Portable Operating System Interface} \\
+	RAM		& \textit{Random Access Memory} \\
+	SFC		& \textit{Sequential Function Chart} \\
+	ST		& \textit{Structured Text} \\
+	VM		& \textit{Virtual Machine} (Máquina Virtual) \\
+	vPLC	& \textit{Virtual Programmable Logic Controller} \\
+
+\end{tabular}
+
+
+
+% ---------------------------------------------------------------------------- %
+% Listas de figuras e tabelas criadas automaticamente
+\listoffigures
+\listoftables
+
+
+% ---------------------------------------------------------------------------- %
+% Capítulos do trabalho
+\mainmatter
+
+% cabeçalho para as páginas de todos os capítulos
+\fancyhead[RE,LO]{\thesection}
+
+\onehalfspacing            % espaçamento um e meio
+
+\input{capitulos/01-introducao}
+\input{capitulos/02-fundamentacao-teorica}
+\input{capitulos/03-consideracoes-finais}
+
+% ---------------------------------------------------------------------------- %
+% Apêndices e/ou Anexos
+
+\appendix
+\renewcommand{\appendixname}{Apêndice} % Para trocar Apendice por Anexo (Se necessário)
+\setcounter{chapter}{0} % ressetar a contagem
+
+\include{apendices/01-base-dados}
+
+
+% ---------------------------------------------------------------------------- %
+% Bibliografia
+\backmatter \singlespacing   % espaçamento simples
+\bibliographystyle{abntex2-alf}% citação bibliográfica alpha alpha-ime
+\bibliography{referencias}  % associado ao arquivo: 'referencias.bib'
+
+
+\end{document}

@@ -1,0 +1,85 @@
+% !TeX root = ../main.tex
+%% ------------------------------------------------------------------------- %%
+\chapter{Introdução}
+\label{cap:introducao}
+
+%% ------------------------------------------------------------------------- %%
+\section{Contextualização}
+\label{sec:contextualizacao}
+
+Este trabalho insere-se na interseção entre a Engenharia de \textit{Software} Embarcado e a Automação Industrial, delimitando-se ao estudo e ao desenvolvimento de arquiteturas de \textit{software} portáveis para o controle de processos.
+O tema central consiste na implementação de uma Máquina Virtual (\textit{VM}) embarcada, projetada para interpretar instruções de lógica \textit{Ladder} --- baseada na norma IEC 61131-3 \cite{iec:2025} --- de maneira independente da plataforma de \textit{hardware} subjacente.
+Para viabilizar essa interpretação, o projeto engloba a definição de uma Arquitetura de Conjunto de Instruções (\textit{ISA} --- \textit{Instruction Set Architecture}) customizada e de tamanho fixo (32 \textit{bits}), projetada especificamente para otimizar o processo de busca e decodificação (\textit{fetch-decode}) e garantir o determinismo do tempo de varredura.
+
+A pesquisa foca especificamente na migração e na adaptação dessa arquitetura para microcontroladores da família \textit{STM32} (núcleo \textit{ARM Cortex-M7}), explorando técnicas de abstração de \textit{hardware} (\textit{HAL}) e metodologias de \textit{Model-Based Design}.
+A relevância técnica do tema reside na investigação de métodos para desacoplar a lógica de controle industrial do \textit{hardware} proprietário, promovendo a interoperabilidade e a redução de custos em sistemas de automação.
+Propõe-se a segregação estrutural entre o motor de execução (\textit{firmware} estático) e a lógica de aplicação (\textit{bytecode} tratado como dado), estabelecendo um ambiente de execução isolado (\textit{sandbox}) que previne falhas críticas de processamento e viabiliza a gestão segura do ciclo de vida da aplicação industrial.
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Descrição do Problema}
+\label{sec:problema}
+
+O cenário atual de desenvolvimento de controladores lógicos industriais caracteriza-se por uma forte fragmentação tecnológica e pela predominância de soluções proprietárias, o que resulta no fenômeno de aprisionamento tecnológico.
+A rigidez das arquiteturas convencionais de Controladores Lógicos Programáveis (CLPs) impõe barreiras significativas à inovação, dificultando a portabilidade de algoritmos de controle para plataformas de \textit{hardware} mais modernas e acessíveis sem a necessidade de reengenharia completa do \textit{firmware}.
+Além disso, a validação de lógicas de controle complexas diretamente no \textit{hardware} final apresenta riscos operacionais e custos elevados, carecendo de metodologias que integrem eficientemente a simulação computacional com a execução física.
+
+No âmbito das soluções de código aberto atualmente disponíveis, como o ecossistema \textit{OpenPLC} \cite{alves:2018}, a abordagem predominante baseia-se na compilação de diagramas \textit{Ladder} para código C nativo, seguida de compilação estática.
+Embora eficiente em termos de tempo de execução, essa metodologia funde a lógica de controle aos \textit{drivers} de \textit{hardware} em um binário monolítico.
+Consequentemente, a adaptação para novas plataformas ou pinagens exige modificações diretas no código-fonte dos \textit{drivers} em baixo nível, limitando drasticamente a portabilidade.
+Adicionalmente, a execução do código traduzido diretamente no processador elimina barreiras de proteção inerentes a sistemas operacionais: um erro na modelagem da lógica do usuário pode resultar em falhas críticas do sistema, comprometendo a estabilidade do equipamento industrial.
+
+Por outro lado, abordagens alternativas baseadas em interpretadores de linguagens de \textit{script} genéricas, como o \textit{MicroPython} \cite{micropython:2025}, falham em atender aos requisitos de tempo real estrito da automação industrial, devido à gestão não determinística de memória (\textit{Garbage Collection}), que introduz variações inaceitáveis no tempo de varredura.
+O problema técnico a ser abordado, portanto, é a ausência de uma camada de virtualização eficiente e aberta que permita a execução segura e determinística de lógicas de controle padronizadas em microcontroladores de propósito geral, garantindo a fidelidade comportamental entre o modelo projetado em ambiente de simulação e o sistema embarcado final.
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Objetivos}
+\label{sec:objetivo}
+
+\subsection{Objetivo Geral}
+\label{sec:objgeral}
+
+Desenvolver e validar uma máquina virtual embarcada capaz de interpretar \textit{bytecode} de lógica \textit{Ladder} com fidelidade semântica à norma IEC 61131-3, executando de forma determinística e agnóstica de \textit{hardware} em um microcontrolador da família \textit{STM32}.
+
+\subsection{Objetivos Específicos}
+\label{sec:objespecificos}
+
+\begin{itemize}
+	\item Especificar e documentar formalmente uma Arquitetura de Conjunto de Instruções (\textit{ISA}) de 32 \textit{bits}, compatível com as primitivas operacionais do subconjunto \textit{Ladder Diagram} da IEC 61131-3;
+	\item Modelar lógicas de controle de referência em ambiente \textit{Simulink}/\textit{Stateflow}, segundo a metodologia de \textit{Model-Based Design};
+	\item Implementar, em linguagem C, o motor de execução (\textit{VM}) responsável pelo ciclo de busca, decodificação e execução do \textit{bytecode};
+	\item Desenvolver uma Camada de Abstração de \textit{Hardware} (\textit{HAL}) para o microcontrolador \textit{STM32F7} (núcleo \textit{ARM Cortex-M7});
+	\item Validar cruzadamente o comportamento da \textit{VM} embarcada frente ao modelo de referência simulado, comparando as tabelas de imagem de saída para um mesmo conjunto de estímulos de entrada;
+	\item Analisar quantitativamente o desempenho da solução, mensurando o tempo de varredura (\textit{scan cycle}) e o consumo de memória \textit{RAM} e \textit{Flash}.
+\end{itemize}
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Justificativa}
+\label{sec:justificativa}
+
+A relevância deste trabalho decorre da lacuna identificada entre as soluções de código aberto disponíveis e os requisitos de portabilidade e determinismo da automação industrial.
+Ao segregar o motor de execução da lógica de aplicação, a arquitetura proposta elimina a necessidade de recompilação do \textit{firmware} a cada alteração da lógica \textit{Ladder}, reduzindo o tempo de comissionamento e o risco de falhas decorrentes de atualizações completas de memória.
+O caráter de ambiente isolado (\textit{sandbox}) confere ainda uma camada de segurança inexistente nas soluções que traduzem a lógica do usuário diretamente para código nativo, contendo eventuais erros estruturais antes que comprometam a estabilidade do sistema embarcado.
+
+Do ponto de vista social e econômico, a proposta de uma solução aberta e portável para múltiplas plataformas de \textit{hardware} contribui para reduzir o aprisionamento tecnológico a fabricantes específicos, democratizando o acesso a tecnologias de automação hoje concentradas em soluções proprietárias de alto custo.
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Metodologia}
+\label{sec:metodologia}
+
+A metodologia adotada caracteriza-se como pesquisa aplicada de natureza experimental, estruturada em etapas sequenciais com entregas incrementais, seguindo uma abordagem \textit{bottom-up} que parte da especificação formal da arquitetura até a validação funcional integrada ao \textit{hardware}.
+Trata-se de pesquisa aplicada por visar à resolução de um problema técnico concreto --- a ausência de uma camada de virtualização aberta e determinística para lógicas \textit{Ladder} em microcontroladores de propósito geral --- e de abordagem predominantemente quantitativa, uma vez que a validação da solução é aferida por métricas numéricas de desempenho, como o tempo de varredura e o consumo de memória.
+Os procedimentos técnicos configuram-se como pesquisa experimental, dado que envolvem a construção de um artefato de \textit{software} embarcado e a manipulação controlada de variáveis durante os testes comparativos entre a simulação em \textit{Simulink} e a execução física na \textit{VM} embarcada.
+
+O detalhamento de cada etapa metodológica --- especificação da \textit{ISA}, modelagem de referência, implementação do motor de execução, desenvolvimento da \textit{HAL}, integração com \textit{hardware}, validação cruzada e análise de desempenho --- será apresentado nos capítulos de desenvolvimento deste trabalho.
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Organização do Documento}
+\label{sec:organizacao}
+
+O restante deste trabalho está organizado da seguinte forma: o Capítulo~\ref{cap:fundamentacao} apresenta a fundamentação teórica, contemplando a norma IEC 61131-3, os trabalhos relacionados e o estado da prática em soluções para execução de lógicas de controle industrial, além dos conceitos de arquitetura que sustentam a solução proposta.
+Os capítulos subsequentes apresentarão a concepção e a modelagem detalhada da solução, os resultados obtidos na validação cruzada e na análise de desempenho, seguidos das considerações finais e das sugestões para trabalhos futuros, no Capítulo~\ref{cap:finais}.
