@@ -6,12 +6,17 @@
 % Corpo do texto
 \begin{document}
 \frontmatter
-% cabeçalho para as páginas das seções anteriores ao capítulo 1 (frontmatter)
-\fancyhead[RO]{{\footnotesize\rightmark}\hspace{2em}\thepage}
 \setcounter{tocdepth}{2}
-\fancyhead[LE]{\thepage\hspace{2em}\footnotesize{\leftmark}}
-\fancyhead[RE,LO]{}
-\fancyhead[RO]{{\footnotesize\rightmark}\hspace{2em}\thepage}
+
+% Paginação (seção 2.3.4 do manual IFPB-CG): as páginas são contadas a partir
+% da folha de rosto, mas só começam a ser graficamente numeradas na primeira
+% página da Introdução. Por isso os elementos pré-textuais ficam sem número
+% visível (pagestyle vazio); a numeração aparece só a partir do \mainmatter.
+\makeatletter
+\let\ps@plainorig\ps@plain
+\renewcommand{\ps@plain}{\ps@empty}
+\makeatother
+\pagestyle{empty}
 
 \onehalfspacing  % espaçamento
 
@@ -21,25 +26,21 @@
 \thispagestyle{empty}
 \begin{center}
     \includegraphics[scale=0.4]{ifpb} \\
-    \Large Instituto Federal de Educação, Ciência e Tecnologia da Paraíba\\
-    Campus Campina Grande\\
-    Coordenação do Curso Superior de Tecnologia em Telemática\\
+    INSTITUTO FEDERAL DE EDUCAÇÃO, CIÊNCIA E TECNOLOGIA DA PARAÍBA\\
+    CAMPUS CAMPINA GRANDE\\
+    COORDENAÇÃO DO CURSO SUPERIOR BACHARELADO EM ENGENHARIA DE COMPUTAÇÃO\\
 
     \vspace*{4cm}
 
-    \textbf{\LARGE{IMPLEMENTAÇÃO E VALIDAÇÃO DE UMA MÁQUINA VIRTUAL DE LÓGICA LADDER E AGNÓSTICA DE HARDWARE BASEADA EM MODEL-BASED DESIGN}}\\
+    \textbf{GABRIEL DOMINGOS DE MEDEIROS}
 
     \vspace*{3.5cm}
-    \Large{GABRIEL DOMINGOS DE MEDEIROS}
+    \textbf{IMPLEMENTAÇÃO E VALIDAÇÃO DE UMA MÁQUINA VIRTUAL DE LÓGICA LADDER E AGNÓSTICA DE HARDWARE BASEADA EM MODEL-BASED DESIGN}\\
 
-    \vskip 4cm
+    \vfill
 
-    Orientador: FAGNER DE ARAÚJO PEREIRA\\
-
-    \vskip 4cm
-
-    \normalsize{Campina Grande, fevereiro de 2013} \\
-    \textregistered Nome do aluno
+    Campina Grande - PB\\
+    2026
 
 \end{center}
 
@@ -47,17 +48,11 @@
 
 \thispagestyle{empty}
 \begin{center}
-    \includegraphics[scale=0.4]{ifpb} \\
-    \Large Instituto Federal de Educação, Ciência e Tecnologia da Paraíba\\
-    Campus Campina Grande\\
-    Coordenação do Cursos Superior de Tecnologia em Telemática\\
 
-    \vspace*{4cm}
-
-    \textbf{\LARGE{IMPLEMENTAÇÃO E VALIDAÇÃO DE UMA MÁQUINA VIRTUAL DE LÓGICA LADDER E AGNÓSTICA DE HARDWARE BASEADA EM MODEL-BASED DESIGN}}\\
+    \textbf{GABRIEL DOMINGOS DE MEDEIROS}
 
     \vspace*{2cm}
-    \Large{GABRIEL DOMINGOS DE MEDEIROS}
+    \textbf{IMPLEMENTAÇÃO E VALIDAÇÃO DE UMA MÁQUINA VIRTUAL DE LÓGICA LADDER E AGNÓSTICA DE HARDWARE BASEADA EM MODEL-BASED DESIGN}\\
 
     \vskip 1.5cm
 \end{center}
@@ -67,7 +62,7 @@
     \begin{flushright}
 		\begin{minipage}[left]{0.5\linewidth}
 
-			Monografia apresentada à Coordenação do Curso de Telemática do IFPB - Campus Campina Grande, como requisito parcial para conclusão do curso de Tecnologia em Telemática.\\
+			Monografia apresentada à Coordenação do Curso de Engenharia de Computação do IFPB - Campus Campina Grande, como requisito parcial para conclusão do curso de Bacharelado em Engenharia de Computação.\\
 
 		\end{minipage}
 
@@ -76,11 +71,16 @@
 
 \begin{center}
 
+    \vskip 1cm
+    Instituto Federal da Paraíba
+
     \vskip 2cm
     Orientador: Fagner de Araújo Pereira\\
-    \vskip 2.0cm
 
-    \normalsize{Campina Grande, fevereiro de 2013}
+    \vfill
+
+    Campina Grande - PB\\
+    2026
 \end{center}
 
 \newpage
@@ -101,37 +101,64 @@
     \begin{center}
 
 
-	    \textbf{\LARGE{IMPLEMENTAÇÃO E VALIDAÇÃO DE UMA MÁQUINA VIRTUAL DE LÓGICA LADDER E AGNÓSTICA DE HARDWARE BASEADA EM MODEL-BASED DESIGN}}\\
+	    \textbf{GABRIEL DOMINGOS DE MEDEIROS}
 
-        \vspace*{3cm}
+        \vspace*{2cm}
 
-    	\textbf{GABRIEL DOMINGOS DE MEDEIROS}
+    	\textbf{IMPLEMENTAÇÃO E VALIDAÇÃO DE UMA MÁQUINA VIRTUAL DE LÓGICA LADDER E AGNÓSTICA DE HARDWARE BASEADA EM MODEL-BASED DESIGN}\\
 
-    	\vskip 3cm
+    	\vskip 2cm
+    \end{center}
 
+    \begin{center}
+		\begin{minipage}{0.75\linewidth}
 
-		\rule{10cm}{0.1mm}
+			Monografia apresentada ao Curso de Bacharelado em Engenharia de Computação, do Instituto Federal de Educação, Ciência e Tecnologia da Paraíba - Campus Campina Grande, em cumprimento às exigências parciais para a obtenção do título de Bacharel em Engenharia da Computação.\\
+
+			\vskip 0.5cm
+
+			Trabalho aprovado. Campina Grande - PB, \rule{1cm}{0.4pt} de \rule{3cm}{0.4pt} de 2026.
+
+		\end{minipage}
+    \end{center}
+
+    \begin{center}
+
+    	\vskip 1cm
+
+		\rule{10cm}{0.1mm}\\
 		FAGNER DE ARAÚJO PEREIRA\\
 		Orientador
 
     	\vskip 2cm
 
-		\rule{10cm}{0.1mm}
+		\rule{10cm}{0.1mm}\\
 		XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\\
 		Membro da Banca
 
     	\vskip 2cm
 
-		\rule{10cm}{0.1mm}
+		\rule{10cm}{0.1mm}\\
 		XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\\
 		Membro da Banca
 
-		\vskip 3cm
+		\vfill
 
-		Campina Grande, Paraíba, Brasil\\
-		Fevereiro/2013
+		Campina Grande - PB\\
+		2026
 
     \end{center}
+\pagebreak
+
+% % ---------------------------------------------------------------------------- %
+% % Agradecimentos
+
+\chapter*{Agradecimentos}
+
+
+	XXXXXXXXXXXXXXXXXXXXXX
+
+
 \pagebreak
 
 \newpage
@@ -141,7 +168,7 @@
         \vspace*{20.0cm}
 
         \begin{flushright}
-			Dedicatória (OPCIONAL)
+			\textit{Dedico este trabalho à minha família, pelo apoio incondicional, e a todos que, de alguma forma, contribuíram para que este momento fosse possível.}
         \end{flushright}
 
 
@@ -162,20 +189,6 @@
 
         \end{flushright}
 
-
-
-\pagebreak
-
-
-
-
-% % ---------------------------------------------------------------------------- %
-% % Agradecimentos
-
-\chapter*{Agradecimentos}
-
-
-	XXXXXXXXXXXXXXXXXXXXXX
 
 
 \pagebreak
@@ -203,12 +216,13 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.\\
 
 
 % ---------------------------------------------------------------------------- %
-% Sumário
-\tableofcontents    % imprime o sumário
+% Listas de figuras e tabelas criadas automaticamente
+\listoffigures
+\listoftables
 
 
 % ---------------------------------------------------------------------------- %
-\chapter{Lista de Abreviaturas}
+\chapter*{Lista de Abreviaturas}
 \begin{tabular}{ll}
 	ARM 	& \textit{Advanced RISC Machine} \\
 	CLP		& Controlador Lógico Programável \\
@@ -232,17 +246,20 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.\\
 
 
 % ---------------------------------------------------------------------------- %
-% Listas de figuras e tabelas criadas automaticamente
-\listoffigures
-\listoftables
+% Sumário
+\tableofcontents    % imprime o sumário
 
 
 % ---------------------------------------------------------------------------- %
 % Capítulos do trabalho
 \mainmatter
 
-% cabeçalho para as páginas de todos os capítulos
-\fancyhead[RE,LO]{\thesection}
+% Paginação volta a ficar visível (numeração arábica) a partir daqui, conforme
+% seção 2.3.4 do manual IFPB-CG.
+\makeatletter
+\let\ps@plain\ps@plainorig
+\makeatother
+\pagestyle{plain}
 
 \onehalfspacing            % espaçamento um e meio
 
