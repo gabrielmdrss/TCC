@@ -4,107 +4,87 @@
 \label{cap:fundamentacao}
 
 %% ------------------------------------------------------------------------- %%
-\section{A Norma IEC 61131-3}
-\label{sec:iec61131}
+\section{O Tema: Automação Industrial, CLPs e Máquinas Virtuais}
+\label{sec:tema}
+
+Para compreender o problema investigado, é necessário situar dois conceitos centrais: o Controlador Lógico Programável, unidade fundamental da automação industrial, e a máquina virtual, abstração computacional que sustenta a proposta deste trabalho.
+
+Um Controlador Lógico Programável (CLP) é um dispositivo digital programável projetado para controlar processos industriais por meio da execução cíclica de um programa de controle, em um processo denominado ciclo de varredura (\textit{scan cycle}): a cada ciclo, o CLP lê o estado das entradas físicas, executa a lógica de controle armazenada em memória e atualiza o estado das saídas \cite{bolton:2015}.
+A previsibilidade da duração desse ciclo é um requisito central da automação industrial, uma vez que atrasos ou variações no tempo de varredura podem comprometer a segurança e a correção do processo controlado.
 
 A norma IEC 61131-3, cuja quarta edição foi publicada em maio de 2025 pela Comissão Eletrotécnica Internacional (IEC), constitui a norma internacional que define a arquitetura de \textit{software} e as linguagens de programação para controladores programáveis \cite{iec:2025}.
-A norma especifica a sintaxe e a semântica de um conjunto unificado de linguagens, incluindo \textit{Structured Text} (\textit{ST}), \textit{Ladder Diagram} (\textit{LD}), \textit{Function Block Diagram} (\textit{FBD}) e \textit{Sequential Function Chart} (\textit{SFC}).
-A edição mais recente removeu a linguagem \textit{Instruction List} (\textit{IL}), anteriormente marcada como obsoleta, e incorporou suporte a \textit{strings UTF-8}.
-A importância da norma para o presente trabalho é fundamental, pois a \textit{ISA} customizada da máquina virtual proposta é projetada para representar fielmente as primitivas operacionais definidas no subconjunto \textit{LD} da IEC 61131-3, garantindo compatibilidade semântica com o padrão industrial.
+A norma especifica a sintaxe e a semântica de um conjunto unificado de linguagens, incluindo \textit{Structured Text} (\textit{ST}), \textit{Ladder Diagram} (\textit{LD}), \textit{Function Block Diagram} (\textit{FBD}) e \textit{Sequential Function Chart} (\textit{SFC}); a edição mais recente removeu a linguagem \textit{Instruction List} (\textit{IL}), anteriormente marcada como obsoleta.
+A importância da norma para este trabalho é fundamental, pois a \textit{ISA} customizada da máquina virtual proposta é projetada para representar fielmente as primitivas operacionais definidas no subconjunto \textit{LD} da IEC 61131-3, garantindo compatibilidade semântica com o padrão industrial.
+
+Uma máquina virtual (\textit{VM}), por sua vez, corresponde a uma camada de \textit{software} que reproduz, total ou parcialmente, a interface de uma máquina física ou abstrata, permitindo a execução de um programa --- tipicamente representado como \textit{bytecode} --- de forma independente da plataforma de \textit{hardware} subjacente \cite{smith:2005}.
+Essa independência é obtida por meio de um interpretador que traduz as instruções do \textit{bytecode} em operações concretas sobre o \textit{hardware} hospedeiro, segregando a lógica da aplicação da implementação do motor de execução.
+
+A convergência desses dois conceitos --- o CLP como unidade de controle cíclico e determinístico, e a \textit{VM} como camada de abstração portável --- fundamenta a proposta central deste trabalho: uma máquina virtual embarcada capaz de interpretar \textit{bytecode} de lógica \textit{Ladder}, compatível com a IEC 61131-3, preservando tanto o determinismo exigido pela automação industrial quanto a portabilidade típica das arquiteturas virtualizadas.
 
 
 %% ------------------------------------------------------------------------- %%
-\section{Trabalhos Relacionados}
-\label{sec:trabalhos-relacionados}
+\section{O Problema à Luz da Literatura}
+\label{sec:problema-literatura}
 
-No domínio de execução portável de lógicas de controle industrial, destacam-se três eixos temáticos principais na literatura: a implementação do modelo de \textit{software} da norma IEC 61131-3 em sistemas operacionais de tempo real, o desenvolvimento de controladores lógicos de código aberto e as metodologias de \textit{Model-Based Design} aplicadas à geração automática de código para CLPs.
+A Introdução deste trabalho identificou a fragmentação tecnológica e o aprisionamento a soluções proprietárias como obstáculos centrais à portabilidade de lógicas de controle industrial.
+A literatura científica corrobora e aprofunda essa constatação, tanto do ponto de vista teórico do determinismo temporal quanto das tentativas já realizadas de virtualizar o modelo IEC 61131-3.
 
-\subsection{Implementação da IEC 61131-3 sobre Sistemas POSIX de Tempo Real}
-\label{sub:plaza-medrano}
+Do ponto de vista teórico, um sistema de tempo real é definido não apenas pela correção lógica de seus resultados, mas também pela correção temporal: uma resposta correta produzida fora do prazo estabelecido é considerada uma falha do sistema \cite{liu:2000}.
+Essa exigência de determinismo temporal impõe restrições severas sobre qualquer camada de \textit{software} interposta entre a lógica de controle e o \textit{hardware} --- entre elas, uma máquina virtual ---, pois cada etapa adicional de interpretação introduz uma fonte potencial de variabilidade (\textit{jitter}) no tempo de execução.
+É precisamente essa tensão entre portabilidade e determinismo que a literatura sobre virtualização de CLPs busca resolver.
 
-Plaza e Medrano \cite{plaza:2006} apresentaram uma proposta de implementação do modelo de \textit{software} definido pela norma IEC 61131-3 utilizando sistemas operacionais compatíveis com \textit{POSIX} (\textit{Pthreads} e temporizadores de alta resolução), especificamente o \textit{RTLinux}.
-Os autores discutem os aspectos críticos da norma que necessitam de esclarecimento antes de sua implementação prática, como concorrência, escopo de variáveis e operação cíclica, demonstrando que o modelo IEC 61131-3 pode ser mapeado para primitivas \textit{POSIX}, gerando código C a partir de descrições textuais em \textit{Instruction List} (\textit{IL}).
-A contribuição central do trabalho reside na comprovação de que a camada de tradução de IEC para C no padrão \textit{POSIX} é viável e que o desempenho resultante é comparável ao de produtos comerciais.
-Por outro lado, a abordagem permanece vinculada a plataformas com sistema operacional \textit{Linux} em tempo real, não abordando a execução em microcontroladores \textit{bare-metal} de recursos limitados, cenário de aplicação do presente trabalho.
+As primeiras propostas de virtualização do modelo IEC 61131-3 datam de mais de uma década.
+Zhou e Chen \cite{zhou:2009} propuseram uma máquina virtual para CLPs utilizando a linguagem \textit{Instruction List} (\textit{IL}) --- posteriormente removida da norma --- como código intermediário, demonstrando a viabilidade de um motor de interpretação dedicado, ainda sem validação em \textit{hardware} embarcado de recursos limitados.
+Na mesma direção, Plaza e Medrano \cite{plaza:2006} demonstraram que o modelo IEC 61131-3 pode ser mapeado para primitivas \textit{POSIX} (\textit{Pthreads} e temporizadores de alta resolução) sob o \textit{RTLinux}, obtendo desempenho comparável a produtos comerciais; a abordagem, no entanto, permanece vinculada a plataformas com sistema operacional de tempo real, não contemplando a execução \textit{bare-metal} em microcontroladores.
 
-\subsection{Controladores Lógicos de Código Aberto}
-\label{sub:openplc-alves}
+Mais recentemente, Sadolewski e Trybus desenvolveram um ambiente de controle multiplataforma cujo compilador e máquina virtual foram efetivamente testados em um microcontrolador \textit{STM32} de núcleo \textit{ARM} \cite{sadolewski:2022} e, em trabalho subsequente, propuseram um modelo semântico executável para verificar formalmente a corretude do \textit{runtime} da \textit{VM} frente à especificação da linguagem \cite{sadolewski:2024}.
+Esses dois trabalhos são os mais próximos, na literatura, da proposta aqui apresentada: ambos validam a viabilidade de uma \textit{VM} para IEC 61131-3 em \textit{hardware} embarcado real.
+Entretanto, o foco dos autores recai sobre a linguagem \textit{Structured Text} e sobre a verificação formal da semântica de execução, não sobre o subconjunto \textit{Ladder Diagram} nem sobre a validação cruzada contra um modelo comportamental de referência simulado --- lacuna que o presente trabalho busca preencher.
 
-Alves \cite{alves:2018} apresentou o desenvolvimento do \textit{OpenPLC}, o primeiro CLP de código aberto totalmente compatível com a norma IEC 61131-3.
-O trabalho detalha a arquitetura interna do sistema, composta pelo compilador \textit{MatIEC} --- responsável por traduzir código IEC 61131-3 para C++ ---, servidor \textit{web}, camadas de rede, tabelas de imagem de E/S e uma camada de \textit{hardware}.
-Essa obra contribui significativamente para a identificação de limitações arquiteturais do \textit{OpenPLC}: a compilação estática via \textit{MatIEC} funde a lógica do usuário ao binário do sistema, eliminando a possibilidade de atualização dinâmica da lógica de controle e introduzindo riscos de falhas catastróficas caso a lógica do usuário contenha erros estruturais.
-Essas limitações motivam diretamente a arquitetura de segregação entre motor de execução e \textit{bytecode} proposta neste trabalho.
+No âmbito das soluções de código aberto amplamente adotadas, Alves \cite{alves:2018} apresentou o \textit{OpenPLC}, evidenciando que sua compilação estática via \textit{MatIEC} funde a lógica do usuário ao binário do \textit{firmware}, eliminando a possibilidade de atualização dinâmica da lógica de controle.
+Essa limitação é estrutural, não incidental: qualquer abordagem baseada em compilação --- em vez de interpretação --- da lógica de controle tende a acoplar aplicação e motor de execução, comprometendo a portabilidade e a segurança do sistema diante de erros de modelagem.
 
-\subsection{Geração e Validação Automática de Código via Model-Based Design}
-\label{sub:duggan}
-
-Duggan et al. \cite{duggan:2022} apresentaram uma metodologia para projeto e validação de equipamentos em ambientes de manufatura regulados, utilizando o \textit{Simulink} como plataforma de \textit{Model-Based Design}.
-A obra propõe um fluxo de trabalho no qual a lógica de controle é modelada graficamente, validada por simulação digital contra um modelo da planta --- atuando como um gêmeo digital --- e, em seguida, convertida automaticamente para blocos funcionais compatíveis com a IEC 61131-3 via \textit{Simulink PLC Coder} \cite{mathworks:2025}.
-Os autores comprovam que a documentação de validação e o código \textit{PLC} podem ser gerados automaticamente a partir do modelo do sistema, reduzindo significativamente o tempo de comissionamento.
-A metodologia de \textit{Model-Based Design} apresentada por Duggan et al. \cite{duggan:2022} é diretamente aplicável ao presente projeto como estratégia de verificação: a lógica de controle modelada em \textit{Simulink} serve como referência para comparação com a execução na \textit{VM} embarcada.
-
-\subsection{Juliet \& Romeo: Linguagem e VM para Automação Moderna}
-\label{sub:cognibotics}
-
-De forma análoga à solução aqui proposta, a plataforma \textit{Juliet \& Romeo}, desenvolvida pela \textit{Cognibotics} \cite{cognibotics:2025}, representa uma abordagem emergente que combina uma linguagem de programação expressiva (\textit{Juliet}) com uma máquina virtual de tempo real (\textit{Romeo}).
-O sistema foi projetado para automação moderna e programação de movimentos, oferecendo garantias de tempo real e comportamento determinístico.
-Diferentemente da abordagem do presente projeto, que se concentra na interpretação de \textit{bytecodes Ladder} em microcontroladores de recursos limitados, o \textit{Juliet \& Romeo} opera em plataformas de maior capacidade computacional e visa à coexistência com ambientes IEC 61131-3 existentes, como o \textit{CODESYS} \cite{codesys:2025}, buscando atuar como extensão para funcionalidades avançadas de robótica e inteligência artificial.
-Não obstante, o conceito de separação entre linguagem de alto nível e máquina virtual de execução determinística é análogo ao proposto neste trabalho, ainda que a plataforma da \textit{Cognibotics} divirja em abordagem, foco e cenário de aplicação.
+Por fim, a metodologia de \textit{Model-Based Design} tem sido empregada como estratégia de validação de lógicas de controle: Duggan et al. \cite{duggan:2022} demonstram que a documentação de validação e o código \textit{PLC} podem ser gerados automaticamente a partir de um modelo simulado, enquanto a plataforma \textit{Juliet \& Romeo}, da \textit{Cognibotics} \cite{cognibotics:2025}, evidencia, em escala industrial de maior porte, que a separação entre uma linguagem de alto nível e uma máquina virtual de execução determinística é uma estratégia arquitetural viável.
+Considerados em conjunto, esses trabalhos confirmam tanto a viabilidade técnica da virtualização de lógicas de controle quanto a ausência recorrente de soluções voltadas especificamente a microcontroladores de recursos limitados com validação cruzada explícita contra um modelo de referência simulado.
 
 
 %% ------------------------------------------------------------------------- %%
-\section{Estado da Prática}
-\label{sec:estado-pratica}
+\section{A Lacuna}
+\label{sec:lacuna}
 
-O estado da prática em soluções reais para execução de lógicas de controle IEC 61131-3 compreende tanto produtos comerciais consolidados quanto projetos de código aberto.
-Esta seção descreve as principais soluções disponíveis no mercado e na comunidade, apontando suas características, pontos positivos e limitações.
+Ao lado dos trabalhos acadêmicos, o estado da prática em soluções comerciais e de código aberto reforça a mesma lacuna sob uma perspectiva de mercado.
+O \textit{OpenPLC} \cite{openplc:2025}, solução de código aberto mais madura para CLPs em \textit{hardware} de propósito geral, mantém a limitação estrutural já discutida: a lógica do usuário funde-se ao \textit{firmware} compilado, exigindo regravação completa a cada alteração.
+O \textit{CODESYS Runtime} \cite{codesys:2025}, por sua vez, resolve o problema da portabilidade ao gerar código nativo para uma ampla gama de processadores, mas o faz como produto comercial de código fechado, cujo custo de licenciamento e cuja dependência de um \textit{Runtime Toolkit} proprietário inviabilizam a adaptação livre para novo \textit{hardware}.
+O \textit{Simulink PLC Coder} \cite{mathworks:2025} demonstra, na prática, a viabilidade de gerar código IEC 61131-3 automaticamente a partir de um modelo --- corroborando a metodologia de \textit{Model-Based Design} discutida anteriormente ---, mas pressupõe a existência de um CLP alvo convencional, não oferecendo camada de virtualização própria para microcontroladores.
+Por fim, abordagens genéricas como o \textit{MicroPython} \cite{micropython:2025} mostram que interpretadores de \textit{bytecode} são viáveis em microcontroladores de baixo custo, mas sua gestão de memória por \textit{Garbage Collection} introduz pausas não determinísticas incompatíveis com o ciclo de varredura industrial.
 
-\subsection{OpenPLC}
-\label{sub:estado-openplc}
-
-O \textit{OpenPLC} \cite{openplc:2025} é a solução de código aberto mais madura para implementação de CLPs em \textit{hardware} de propósito geral.
-Compatível com as cinco linguagens da IEC 61131-3, suporta execução em plataformas como \textit{Raspberry Pi}, \textit{Arduino} e PCs industriais com \textit{Linux}.
-Sua arquitetura baseia-se no compilador \textit{MatIEC}, que traduz o código IEC 61131-3 para C++ executado nativamente na plataforma embarcada selecionada, contando ainda com servidor \textit{web} para \textit{upload} e gerenciamento de programas, suporte ao protocolo \textit{Modbus} e uma camada de \textit{hardware} configurável.
-As limitações do \textit{OpenPLC} residem na compilação estática, que gera um binário único no qual a lógica do usuário é fundida ao \textit{firmware}, exigindo a regravação completa da lógica \textit{Ladder} a cada alteração e impossibilitando atualizações dinâmicas; além disso, a portabilidade para novos \textit{hardwares} exige modificações na camada de \textit{drivers} em baixo nível.
-
-\subsection{CODESYS Runtime}
-\label{sub:estado-codesys}
-
-O \textit{CODESYS Runtime} \cite{codesys:2025}, desenvolvido pela empresa alemã \textit{3S-Smart Software Solutions GmbH}, é o principal sistema de desenvolvimento IEC 61131-3 independente de fabricante, presente em mais de mil tipos diferentes de dispositivos de mais de quinhentos fabricantes.
-O sistema oferece variantes para PCs industriais com \textit{Windows}, dispositivos \textit{Linux} com processadores \textit{ARM} e controladores virtuais (\textit{vPLCs}) executados em contêineres, gerando código nativo --- e não interpretado --- para uma ampla gama de processadores, o que garante desempenho superior.
-Por outro lado, o \textit{CODESYS} é um produto comercial de licenciamento pago, representando uma barreira de custo significativa para projetos acadêmicos e aplicações de pequeno porte; seu código-fonte é proprietário e fechado, impedindo a inspeção e a modificação por pesquisadores, e a adaptação para novos \textit{hardwares} requer a aquisição de um \textit{Runtime Toolkit} proprietário.
-
-\subsection{Simulink PLC Coder}
-\label{sub:estado-simulink}
-
-O \textit{Simulink PLC Coder} \cite{mathworks:2025}, extensão da \textit{MathWorks} para o \textit{MATLAB}, gera automaticamente código IEC 61131-3 a partir de modelos \textit{Simulink}, gráficos \textit{Stateflow} e funções \textit{MATLAB}.
-O código gerado é exportado em formatos compatíveis com os principais IDEs industriais, incluindo \textit{CODESYS}, \textit{Studio 5000}, \textit{TIA Portal} e \textit{Sysmac Studio}, produzindo também bancos de teste para verificação da correspondência entre a simulação e a execução no CLP físico, além de relatórios de geração de código com rastreabilidade bidirecional entre modelo e código.
-A principal limitação dessa solução é pressupor a existência de um CLP alvo convencional ou \textit{Soft PLC} para a execução do código gerado, não oferecendo uma camada de virtualização própria para microcontroladores de propósito geral; adicionalmente, as licenças \textit{MATLAB}/\textit{Simulink} e do \textit{PLC Coder} representam um investimento financeiro significativo.
-
-\subsection{MicroPython}
-\label{sub:estado-micropython}
-
-Uma abordagem alternativa observada na prática consiste na utilização de interpretadores de linguagens de \textit{script} genéricas, como o \textit{MicroPython} \cite{micropython:2025}, em microcontroladores para implementação de lógicas de controle simples.
-O \textit{MicroPython} executa \textit{bytecodes Python} em uma máquina virtual compatível com plataformas como \textit{ESP32}, \textit{STM32} e \textit{Raspberry Pi Pico}.
-Embora ofereça portabilidade e facilidade de programação, a gestão de memória por \textit{Garbage Collection} introduz pausas não determinísticas que violam os requisitos de temporização estrita do ciclo de varredura; além disso, a linguagem \textit{Python} não foi projetada para expressar nativamente primitivas de lógica \textit{Ladder}.
-Dessa forma, o \textit{MicroPython} atende satisfatoriamente aplicações de \textit{IoT} e prototipagem, mas não oferece as garantias de determinismo temporal necessárias para controle industrial.
+Em conjunto, a literatura acadêmica e o estado da prática convergem para a mesma constatação: nenhuma das soluções examinadas concilia, simultaneamente, (i) execução em microcontroladores de recursos limitados, (ii) determinismo temporal compatível com a automação industrial, (iii) segregação entre motor de execução e lógica de aplicação que permita atualização dinâmica segura, e (iv) validação cruzada explícita contra um modelo de referência simulado.
+É essa lacuna --- confirmada tanto pelos trabalhos de Sadolewski e Trybus \cite{sadolewski:2022,sadolewski:2024} quanto pelas limitações do \textit{OpenPLC} \cite{openplc:2025}, do \textit{CODESYS} \cite{codesys:2025} e do \textit{MicroPython} \cite{micropython:2025} --- que justifica e delimita a proposta deste trabalho.
 
 
 %% ------------------------------------------------------------------------- %%
-\section{Conceitos Fundamentais de Arquitetura}
-\label{sec:conceitos-arquitetura}
+\section{Fundamentos da Solução}
+\label{sec:fundamentos-solucao}
 
-Esta seção introduz os conceitos teóricos que fundamentam as decisões de projeto detalhadas nos capítulos de desenvolvimento deste trabalho.
+Diante da lacuna identificada, esta seção apresenta os fundamentos teóricos que sustentam a solução proposta: uma máquina virtual embarcada baseada em Arquitetura de Conjunto de Instruções (\textit{ISA}) customizada, Camada de Abstração de \textit{Hardware} (\textit{HAL}) e ambiente de execução isolado (\textit{sandbox}), validada por meio de \textit{Model-Based Design}.
 
-Uma Arquitetura de Conjunto de Instruções (\textit{ISA}) de largura fixa define instruções que ocupam sempre o mesmo número de \textit{bits} em memória.
-Essa escolha simplifica o estágio de busca e decodificação (\textit{fetch-decode}) de um interpretador: como o avanço do ponteiro de instrução é constante, o tempo de decodificação torna-se previsível, característica desejável para sistemas com requisitos de determinismo temporal, como o ciclo de varredura de um CLP.
-O ciclo \textit{fetch-decode-execute} constitui o modelo clássico de operação de uma máquina virtual ou processador: a instrução é buscada na memória de programa, decodificada para identificar a operação e os operandos, e então executada, repetindo-se o processo para a instrução seguinte.
+Uma \textit{ISA} define a interface entre o \textit{software} e o \textit{hardware} de um processador ou máquina virtual, especificando o formato, a semântica e o repertório das instruções executáveis \cite{patterson:2020}.
+\textit{ISAs} de largura fixa --- nas quais toda instrução ocupa o mesmo número de \textit{bits} --- simplificam o estágio de busca e decodificação (\textit{fetch-decode}), pois o avanço do ponteiro de instrução é constante e o tempo de decodificação torna-se previsível, característica desejável para sistemas com requisitos de determinismo temporal, como o ciclo de varredura de um CLP.
+O ciclo \textit{fetch-decode-execute} constitui o modelo clássico de operação de um processador ou máquina virtual: a instrução é buscada na memória de programa, decodificada para identificar a operação e os operandos, e então executada, repetindo-se o processo para a instrução seguinte.
 
-A Camada de Abstração de \textit{Hardware} (\textit{HAL}) é um padrão arquitetural que encapsula o acesso aos periféricos físicos de um dispositivo --- como \textit{GPIOs}, temporizadores e conversores analógico-digitais --- por trás de uma interface estável e independente do \textit{hardware} subjacente.
+A \textit{HAL} é um padrão arquitetural que encapsula o acesso aos periféricos físicos de um dispositivo --- como \textit{GPIOs}, temporizadores e conversores analógico-digitais --- por trás de uma interface estável e independente do \textit{hardware} subjacente.
 A adoção de uma \textit{HAL} permite que a lógica de aplicação e o motor de execução permaneçam inalterados quando o projeto é portado para uma nova plataforma, restringindo o esforço de adaptação à reimplementação da própria camada.
 
 Um ambiente de execução isolado (\textit{sandbox}) é um mecanismo que restringe o escopo de atuação de um programa em execução, validando em tempo real os limites de seus acessos --- como endereços de memória e índices de entrada e saída --- e rejeitando operações inválidas.
-Em sistemas embarcados críticos, esse mecanismo contém erros estruturais na lógica do usuário antes que eles comprometam a estabilidade do restante do sistema.
+Em sistemas embarcados críticos, esse mecanismo contém erros estruturais na lógica do usuário antes que eles comprometam a estabilidade do restante do sistema, respondendo diretamente à limitação do \textit{OpenPLC} discutida na seção anterior.
 
-Por fim, o \textit{Model-Based Design} é uma metodologia de desenvolvimento na qual um modelo executável do sistema --- e, quando aplicável, da planta controlada --- é utilizado como artefato central ao longo de todo o ciclo de vida do projeto, desde a especificação até a verificação.
-Nesse paradigma, a simulação do modelo serve como referência comportamental para validar a implementação final, estratégia adotada neste trabalho para a validação cruzada entre a lógica de controle modelada em \textit{Simulink}/\textit{Stateflow} e sua execução na máquina virtual embarcada.
+Por fim, o \textit{Model-Based Design} é uma metodologia de desenvolvimento na qual um modelo executável do sistema --- e, quando aplicável, da planta controlada --- é utilizado como artefato central ao longo de todo o ciclo de vida do projeto, da especificação à verificação \cite{nicolescu:2009}.
+Nesse paradigma, a simulação do modelo serve como referência comportamental para validar a implementação final: estratégia empregada por Duggan et al. \cite{duggan:2022} na geração e validação automática de código \textit{PLC}, e adotada neste trabalho para a validação cruzada entre a lógica de controle modelada em \textit{Simulink}/\textit{Stateflow} e sua execução na máquina virtual embarcada --- respondendo, assim, à ausência de validação cruzada sistemática identificada nos trabalhos de Sadolewski e Trybus.
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Síntese}
+\label{sec:sintese-fundamentacao}
+
+Os fundamentos apresentados neste capítulo --- da norma IEC 61131-3 e do conceito de máquina virtual, passando pela literatura sobre determinismo temporal e pelas tentativas anteriores de virtualização do modelo IEC 61131-3, até os princípios arquiteturais de \textit{ISA}, \textit{HAL}, \textit{sandbox} e \textit{Model-Based Design} --- sustentam de forma articulada a solução proposta.
+Onde a literatura acadêmica demonstrou viabilidade técnica sem validação cruzada sistemática contra um modelo de referência, e onde o estado da prática ofereceu portabilidade ou determinismo, mas raramente ambos de forma simultânea em \textit{hardware} de recursos limitados, este trabalho posiciona-se para preencher essa lacuna: uma máquina virtual embarcada, agnóstica de \textit{hardware}, para lógica \textit{Ladder} compatível com a IEC 61131-3.
