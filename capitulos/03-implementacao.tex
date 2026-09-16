@@ -1,0 +1,303 @@
+% !TeX root = ../main.tex
+%% ------------------------------------------------------------------------- %%
+\chapter{Implementação}
+\label{cap:implementacao}
+
+Os conceitos que sustentam a solução proposta --- Arquitetura de Conjunto de Instruções (\textit{ISA}), Camada de Abstração de \textit{Hardware} (\textit{HAL}), ambiente de execução isolado (\textit{sandbox}) e \textit{Model-Based Design} --- foram apresentados no Capítulo~\ref{cap:fundamentacao}.
+Este capítulo não redefine esses conceitos; apresenta como cada um deles se materializa em código, em diagramas de operação e em evidência experimental, seguindo a segunda situação prevista pelo roteiro da disciplina apenas quando um conceito ainda carece de detalhamento próprio à implementação.
+Cada escolha de projeto é justificada com base em evidência extraída do próprio código-fonte, do histórico de versionamento do firmware ou de ensaios já realizados, nunca por preferência não fundamentada.
+
+%% ------------------------------------------------------------------------- %%
+\section{Visão Geral da Arquitetura Implementada}
+\label{sec:visao-geral-implementacao}
+
+O firmware desenvolvido para este trabalho está organizado em 66 arquivos de código-fonte C (\texttt{.c}/\texttt{.h}) distribuídos em cinco módulos: \texttt{vm} (motor de execução e instruções), \texttt{memory\_map} (mapas de memória dos blocos funcionais), \texttt{comm} (protocolo de comunicação), \texttt{hal\_wrapper} (camada de abstração de \textit{hardware}) e \texttt{system} (periféricos de baixo nível).
+Dessa base, apenas quatro arquivos --- \texttt{Bsp.c}, \texttt{BspUsb\_Descriptors.h}, \texttt{Dma.c} e \texttt{Dma.h} --- concentram toda a interação direta com os periféricos do microcontrolador alvo, o STM32F767ZI (núcleo ARM Cortex-M7).
+Os demais 62 arquivos, incluindo a totalidade do motor de execução da \textit{VM} e das instruções, são escritos exclusivamente contra a interface pública declarada em \texttt{Bsp.h}, sem qualquer dependência de tipos ou registradores do fabricante do microcontrolador.
+Essa proporção --- 4 em 66 arquivos acoplados ao \textit{hardware} --- é a evidência concreta de que a \textit{HAL} descrita teoricamente na Seção~\ref{sec:fundamentos-solucao} está de fato implementada como fronteira de portabilidade, e não apenas como intenção de projeto: é precisamente essa fronteira que delimita, na Seção~\ref{sec:migracao-stm32}, o escopo dos quatro arquivos cuja implementação é específica ao STM32F767ZI.
+
+\begin{figure}[htb]
+    \centering
+    \fbox{\begin{minipage}{0.85\textwidth}
+        \centering
+        \vspace{1.5cm}
+        \textit{Figura a inserir: diagrama de blocos com os cinco módulos do firmware (\texttt{vm}, \texttt{memory\_map}, \texttt{comm}, \texttt{hal\_wrapper}, \texttt{system}), destacando em cor diferente os 4 arquivos cuja implementação é específica ao STM32F767ZI dentro de \texttt{hal\_wrapper} e \texttt{system}.}
+        \vspace{1.5cm}
+    \end{minipage}}
+    \caption{Visão geral dos módulos do firmware e fronteira de portabilidade}
+    \label{fig:arquitetura-geral}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{figure}
+
+A Figura~\ref{fig:arquitetura-geral} situa essa fronteira: a lógica de aplicação (bytecode do usuário) nunca acessa periféricos diretamente, apenas através da \textit{VM}; a \textit{VM}, por sua vez, nunca acessa registradores de \textit{hardware} diretamente, apenas através de \texttt{Bsp.h}.
+As três seções seguintes detalham, respectivamente, o motor de execução e o conjunto de instruções (Seção~\ref{sec:vm-isa}), a camada de abstração de \textit{hardware} e o protocolo de comunicação (Seção~\ref{sec:hal-comunicacao}) e o plano de implementação para o microcontrolador alvo desta pesquisa, o STM32F767ZI (Seção~\ref{sec:migracao-stm32}).
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Máquina Virtual e Conjunto de Instruções}
+\label{sec:vm-isa}
+
+O motor de execução da \textit{VM} (arquivo \texttt{Vm.c}) implementa o ciclo \textit{fetch-decode-execute} apresentado teoricamente na Seção~\ref{sec:fundamentos-solucao}: a cada iteração, uma instrução de 4 \textit{bytes} é lida da memória de programa (\textit{fetch}), seu campo de opcode é isolado (\textit{decode}) e utilizado como índice de uma tabela de despacho de ponteiros de função (\texttt{VmDispatchTable}), que direciona a execução para a rotina correspondente (\textit{execute}).
+A escolha de uma tabela de despacho indexada por opcode, em vez de uma cadeia de \texttt{switch}/\texttt{if} sequenciais, é uma decisão de implementação com justificativa direta em determinismo temporal: o tempo de despacho é constante (acesso a vetor, $O(1)$) e independente de qual instrução está sendo executada, característica desejável para preservar a previsibilidade do ciclo de varredura (\textit{scan cycle}) discutida na Seção~\ref{sec:tema} \cite{patterson:2020}.
+
+O conjunto de instruções, definido em \texttt{VmInstructions.h}, ocupa hoje os opcodes \texttt{0x00} a \texttt{0x4A} (75 instruções) e está organizado em nove módulos de execução, cada um implementado em um arquivo \texttt{.c} dedicado dentro de \texttt{vm/instructions/}:
+
+\begin{itemize}
+    \item \texttt{VmInstr\_Bit} --- lógica de contatos e bobinas (\texttt{LD}, \texttt{LDN}, \texttt{AND}, \texttt{OR}, \texttt{OUT}, \texttt{SET}, \texttt{RESET}, pilha de blocos lógicos \texttt{MPS}/\texttt{MRD}/\texttt{MPP});
+    \item \texttt{VmInstr\_Compare} --- comparações entre operandos inteiros (\texttt{S32}) e de ponto flutuante (\texttt{F32}): \texttt{EQU}, \texttt{NEQ}, \texttt{GRT}, \texttt{LES}, \texttt{GEQ};
+    \item \texttt{VmInstr\_Math} --- aritmética \texttt{S32}/\texttt{F32}: soma, subtração, multiplicação, divisão, módulo, mínimo, máximo;
+    \item \texttt{VmInstr\_Convert} --- conversão e movimentação de dados entre tipos e registradores;
+    \item \texttt{VmInstr\_Flow} --- controle de fluxo do bytecode;
+    \item \texttt{VmInstr\_Analog} --- leitura e escrita de canais analógicos;
+    \item \texttt{VmInstr\_TimerCounter} --- blocos funcionais de temporizador e contador;
+    \item \texttt{VmInstr\_Control} --- bloco funcional \texttt{PID} (opcode \texttt{0x4A});
+    \item \texttt{VmInstr\_Comm} --- instruções de interação com o protocolo de comunicação descrito na Seção~\ref{sec:hal-comunicacao}.
+\end{itemize}
+
+A largura fixa de 4 \textit{bytes} por instrução --- já justificada teoricamente na Seção~\ref{sec:fundamentos-solucao} como simplificadora do estágio de \textit{fetch-decode} --- tem uma consequência direta de implementação: o ponteiro de instrução (\textit{program counter}) avança sempre por incrementos constantes, o que elimina a necessidade de lógica de decodificação de comprimento variável presente em \textit{ISAs} de largura variável (como x86), reduzindo tanto o número de ciclos de processador gastos na decodificação quanto a superfície de código sujeita a erro.
+
+Blocos funcionais com estado persistente entre ciclos de varredura --- temporizador, contador e PID --- não armazenam esse estado no próprio bytecode (que é, por definição, somente leitura durante a execução); cada um possui um mapa de memória dedicado (\texttt{TimerMap}, \texttt{CounterMap}, \texttt{PidMap}, além de \texttt{IoMap}, \texttt{AnalogMap}, \texttt{PwmMap}, \texttt{DataRegMap} e \texttt{LastStateMap} para os demais tipos de dado do sistema).
+Essa segregação é a mesma decisão arquitetural, em nível de implementação, que sustenta o ambiente de execução isolado (\textit{sandbox}) descrito na Seção~\ref{sec:fundamentos-solucao}: o bytecode do usuário nunca aponta diretamente para essas estruturas em memória, apenas as referencia por índice, validado em tempo de execução antes do acesso --- um erro de índice na lógica do usuário resulta em um erro de \textit{trap} controlado, não em corrupção de memória arbitrária.
+
+\begin{figure}[htb]
+    \centering
+    \fbox{\begin{minipage}{0.85\textwidth}
+        \centering
+        \vspace{1.5cm}
+        \textit{Figura a inserir: diagrama de estados do ciclo fetch-decode-execute (três estados: Fetch $\rightarrow$ Decode $\rightarrow$ Execute $\rightarrow$ volta a Fetch), com uma ramificação para o estado de Erro de Trap quando o opcode ou o índice de operando é inválido.}
+        \vspace{1.5cm}
+    \end{minipage}}
+    \caption{Ciclo \textit{fetch-decode-execute} da máquina virtual}
+    \label{fig:fetch-decode-execute}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{figure}
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Camada de Abstração de Hardware e Protocolo de Comunicação}
+\label{sec:hal-comunicacao}
+
+A interface pública da \textit{HAL} (\texttt{Bsp.h}) expõe exclusivamente funções e tipos primitivos (\texttt{u8}, \texttt{u16}, \texttt{u32}, \texttt{bool}) definidos em um cabeçalho de tipos comum do firmware, organizadas por periférico: inicialização geral (\texttt{Bsp\_Init}), entradas e saídas digitais (\texttt{Bsp\_GetRawInputs}, \texttt{Bsp\_SetRawOutputs}), comunicação serial (\texttt{Bsp\_SerialInit} e correlatas), temporização (\texttt{Bsp\_Timer\_Init}, \texttt{Bsp\_GetSystemTimeMs}), DMA (\texttt{Bsp\_DmaOpen}, \texttt{Bsp\_DmaCreateTx}/\texttt{Rx}) e USB (\texttt{Bsp\_UsbInit}, \texttt{Bsp\_UsbRead}/\texttt{Write}).
+Nenhum tipo específico do \textit{SDK} do fabricante do microcontrolador (por exemplo, as estruturas de configuração da \textit{STM32Cube HAL}) aparece nessa interface --- eles ficam confinados à implementação (\texttt{Bsp.c}), nunca ao contrato.
+Essa separação entre contrato e implementação é o motivo pelo qual a implementação específica ao STM32F767ZI, descrita na Seção~\ref{sec:migracao-stm32}, se restringe a quatro arquivos: o restante do firmware é escrito inteiramente contra o contrato de \texttt{Bsp.h}, sem nunca referenciar o fabricante do microcontrolador.
+
+O protocolo de comunicação entre o CLP embarcado e a ferramenta de \textit{host} (transferência de bytecode e depuração em tempo real) utiliza enquadramento por \textit{Consistent Overhead Byte Stuffing} (\textit{COBS}), verificação de integridade por CRC16 e um conjunto de comandos de controle (\texttt{ACK}, \texttt{NACK}, \texttt{SEND\_VM\_ERROR}, \texttt{START\_TRANSFER}, \texttt{STOP\_TRANSFER}, \texttt{DATA\_PACKET}).
+Uma versão mais completa desse protocolo, com uma camada adicional de autenticação por senha e desafio-resposta que impede que ferramentas não autorizadas gravem bytecode no dispositivo, foi concebida e implementada em coautoria com um colega; essa camada de autenticação, em particular, não é objeto de contribuição individual deste trabalho.
+
+Para este trabalho, adota-se deliberadamente uma versão simplificada e abstraída do protocolo: preserva-se o enquadramento por COBS e a verificação de integridade por CRC --- mecanismos essenciais para que qualquer transferência de bytecode sobre um canal serial ruidoso seja confiável --- e omite-se a camada de autenticação por desafio-resposta.
+Essa simplificação é uma escolha de escopo, não uma limitação técnica: o objetivo desta implementação é demonstrar a portabilidade do motor de execução e da \textit{HAL}, e não reproduzir um mecanismo de proteção contra clonagem cuja autoria é compartilhada com um colega.
+
+\begin{figure}[htb]
+    \centering
+    \fbox{\begin{minipage}{0.85\textwidth}
+        \centering
+        \vspace{1.5cm}
+        \textit{Figura a inserir: diagrama de sequência do protocolo simplificado --- host envia START\_TRANSFER, CLP responde ACK/NACK, host envia DATA\_PACKET(s) codificados em COBS com CRC, CLP responde ACK por pacote, host envia STOP\_TRANSFER.}
+        \vspace{1.5cm}
+    \end{minipage}}
+    \caption{Sequência simplificada do protocolo de transferência de bytecode}
+    \label{fig:protocolo-sequencia}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026), adaptado do protocolo ICP original.\par}
+\end{figure}
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Plano de Implementação para o STM32F767ZI}
+\label{sec:migracao-stm32}
+
+Conforme delimitado na Seção~\ref{sec:visao-geral-implementacao}, a implementação específica ao microcontrolador STM32F767ZI (núcleo ARM Cortex-M7) está circunscrita a quatro arquivos --- \texttt{Bsp.c}, \texttt{BspUsb\_Descriptors.h}, \texttt{Dma.c} e \texttt{Dma.h} --- e à implementação do protocolo de comunicação simplificado apresentado na Seção~\ref{sec:hal-comunicacao} sobre os periféricos seriais do microcontrolador.
+O Quadro~\ref{qua:mapeamento-perifericos} apresenta os periféricos do STM32F767ZI empregados por cada função da \textit{HAL}.
+
+\begin{table}[htb]
+    \centering
+    \caption{Periféricos do STM32F767ZI utilizados por função da HAL}
+    \label{qua:mapeamento-perifericos}
+    \begin{tabular}{|l|l|}
+        \hline
+        Função no \texttt{Bsp.h} & Periférico/\textit{HAL} do STM32F767ZI \\
+        \hline
+        Entradas/saídas digitais & \textit{GPIO HAL} (\texttt{HAL\_GPIO\_*}) \\
+        Comunicação serial & USART + \textit{HAL} (\texttt{HAL\_UART\_*}), com DMA \\
+        Entradas analógicas & ADC de 12 \textit{bits} + \textit{HAL} (\texttt{HAL\_ADC\_*}) \\
+        Transferência de dados & DMA + \textit{HAL} (\texttt{HAL\_DMA\_*}) \\
+        Temporização (\textit{scan timer}) & \textit{Timer} de propósito geral (\texttt{HAL\_TIM\_*}) \\
+        Comunicação USB & USB \textit{Device} (\texttt{USB\_OTG\_FS}) \\
+        \hline
+    \end{tabular}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026), com base em \texttt{Bsp.h} e nos periféricos do STM32F767ZI.\par}
+\end{table}
+
+A adoção da \textit{HAL} fornecida pelo fabricante (\textit{STM32Cube HAL}), em vez da camada de acesso a registrador de baixo nível (\textit{Low-Layer}, \textit{LL}), é uma escolha de implementação justificada por dois fatores: primeiro, o código gerado pela ferramenta \textit{STM32CubeMX} a partir da configuração gráfica de periféricos reduz o risco de erro de inicialização de registrador, cuja depuração consome tempo desproporcional ao benefício de desempenho da \textit{LL} nesta aplicação; segundo, como a própria \texttt{Bsp.c} já constitui uma camada de abstração adicional sobre o fabricante (Seção~\ref{sec:hal-comunicacao}), o eventual sobrecusto de abstração da \textit{STM32Cube HAL} é absorvido nessa fronteira e não se propaga ao motor de execução da \textit{VM}.
+Essa opção segue, ainda, o precedente de Sadolewski e Trybus \cite{sadolewski:2022}, que validaram um ambiente de controle multiplataforma em microcontrolador STM32 de núcleo ARM utilizando a cadeia de ferramentas oficial do fabricante.
+
+A execução desta implementação está organizada nas semanas descritas no Quadro~\ref{qua:cronograma-migracao}, de modo que cada etapa produza um artefato verificável antes de avançar para a seguinte.
+
+\begin{table}[htb]
+    \centering
+    \caption{Cronograma de implementação e de modelagem MBD}
+    \label{qua:cronograma-migracao}
+    \begin{tabular}{|l|p{9.5cm}|}
+        \hline
+        Semana & Entrega prevista \\
+        \hline
+        1 (15--21/09) & Projeto do protocolo de comunicação simplificado (Seção~\ref{sec:hal-comunicacao}) e esqueleto do projeto \textit{STM32CubeIDE}/\textit{CubeMX} (clocks, \textit{pinout}, periféricos mínimos). \\
+        2 (22--28/09) & Implementação da \textit{HAL}: os quatro arquivos que concentram acesso a periféricos e o protocolo de comunicação sobre a UART/DMA; primeira compilação sem erros no STM32F767ZI. \\
+        3 (29/09--05/10) & \textit{Bring-up} na placa real: validação isolada de GPIO, UART, ADC e temporizador; execução do ciclo \textit{fetch-decode-execute} completo no novo núcleo; repetição, no novo \textit{hardware}, de um subconjunto dos testes de bancada descritos na Seção~\ref{sub:testes-unidade}. \\
+        4 (06--12/10) & Modelagem em \textit{Simulink}/\textit{Stateflow} da máquina de estados do bloco PID (Seção~\ref{sec:stateflow-mbd}) e validação cruzada preliminar entre o modelo e a \textit{VM} em execução. \\
+        5 (13--15/10) & Consolidação de evidências e testes de sistema pendentes no novo \textit{hardware}. \\
+        \hline
+    \end{tabular}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{table}
+
+Na data de fechamento deste capítulo, esta implementação encontra-se na etapa de projeto (Semana 1); os resultados de \textit{bring-up} e de validação no STM32F767ZI, quando concluídos, serão incorporados como atualização deste capítulo antes da defesa deste trabalho.
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Modelagem em Simulink/Stateflow segundo Model-Based Design}
+\label{sec:stateflow-mbd}
+
+A metodologia de \textit{Model-Based Design}, fundamentada na Seção~\ref{sec:fundamentos-solucao}, prescreve um modelo executável do comportamento do sistema como referência para validar a implementação final \cite{nicolescu:2009}.
+Neste trabalho, o comportamento escolhido como primeiro artefato de modelagem é a máquina de prioridade de modos do bloco funcional PID (opcode \texttt{0x4A}, Seção~\ref{sec:vm-isa}), por já estar inteiramente especificada em termos de estados e transições a partir da implementação existente: quatro estados --- \textsc{Desabilitado} (\texttt{EN=FALSE}), \textsc{Reset}, \textsc{Manual} e \textsc{Automático} --- com prioridade estrita entre eles, de modo que \textsc{Desabilitado} sobrepõe-se a \textsc{Reset}, que sobrepõe-se a \textsc{Manual}, que sobrepõe-se a \textsc{Automático}.
+O Quadro~\ref{qua:estados-pid} resume as condições de transição e a saída associada a cada estado, tal como implementadas em \texttt{VmInstr\_Control.c}.
+
+\begin{table}[htb]
+    \centering
+    \caption{Especificação da máquina de prioridade de modos do bloco PID}
+    \label{qua:estados-pid}
+    \begin{tabular}{|l|l|p{6.5cm}|}
+        \hline
+        Estado & Condição de entrada & Comportamento \\
+        \hline
+        \textsc{Desabilitado} & \texttt{EN = FALSE} & Bloco não executa; \texttt{CV} congelado no último valor; estado interno preservado. \\
+        \textsc{Reset} & \texttt{EN = TRUE} \textbf{e} \texttt{RESET = TRUE} & Integrador zerado; \texttt{CV = outMin} imediatamente. \\
+        \textsc{Manual} & \texttt{EN = TRUE}, \texttt{RESET = FALSE} \textbf{e} \texttt{MANUAL = TRUE} & \texttt{CV} segue \texttt{MAN\_CV}; integrador em \textit{back-tracking} para transição sem salto (\textit{bumpless transfer}). \\
+        \textsc{Automático} & \texttt{EN = TRUE}, \texttt{RESET = FALSE} \textbf{e} \texttt{MANUAL = FALSE} & Algoritmo PID posicional com banda morta e \textit{anti-windup} por \textit{back-calculation} (Seção~\ref{sub:testes-sistema}). \\
+        \hline
+    \end{tabular}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026), com base em \texttt{VmInstr\_Control.c}.\par}
+\end{table}
+
+Essa especificação de estados é a que será transcrita para um \textit{chart} \textit{Stateflow} na Semana~4 do cronograma apresentado na Seção~\ref{sec:migracao-stm32} (Quadro~\ref{qua:cronograma-migracao}).
+O papel desse modelo é servir de referência comportamental para a validação cruzada prevista no objetivo específico de comparação de tabelas de imagem de saída (Seção~\ref{sec:objespecificos}): o mesmo conjunto de estímulos de entrada é aplicado tanto ao modelo simulado quanto à \textit{VM} em execução real, e as transições de estado --- não apenas o valor final de \texttt{CV} --- são comparadas entre os dois, de forma análoga à estratégia empregada por Duggan et al. \cite{duggan:2022} na geração e validação automática de código de CLP a partir de modelo.
+
+\begin{figure}[htb]
+    \centering
+    \fbox{\begin{minipage}{0.85\textwidth}
+        \centering
+        \vspace{1.5cm}
+        \textit{Figura a inserir: chart Stateflow com os quatro estados (Desabilitado, Reset, Manual, Automático), setas de transição rotuladas com as condições do Quadro~\ref{qua:estados-pid}, e a prioridade hierárquica indicada por estados superpostos (superstates), conforme convenção do Stateflow.}
+        \vspace{1.5cm}
+    \end{minipage}}
+    \caption{Máquina de estados do bloco PID modelada em Stateflow}
+    \label{fig:stateflow-pid}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{figure}
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Validação e Testes}
+\label{sec:validacao-testes}
+
+A validação da implementação é conduzida em três níveis, escolhidos de acordo com o que cada um é capaz de comprovar isoladamente: testes de unidade e regressão isolam o comportamento de um bloco funcional na bancada real, sem depender de planta simulada; um teste de integração automatizado exercita a máquina de estados do protocolo de comunicação contra o firmware real via porta serial; e testes de sistema em malha fechada (\textit{Hardware-in-the-Loop}, \textit{HIL}) validam o comportamento do controlador PID contra arquétipos de processo industrial simulados em tempo real.
+Os três níveis de teste descritos a seguir foram executados em um protótipo de desenvolvimento equivalente, anterior à conclusão da implementação específica ao STM32F767ZI (Seção~\ref{sec:migracao-stm32}); como a lógica de aplicação e o motor de execução da \textit{VM} nunca acessam periféricos fora do contrato definido por \texttt{Bsp.h} (Seção~\ref{sec:hal-comunicacao}), o comportamento validado é independente do microcontrolador utilizado, e a repetição desses ensaios diretamente no STM32F767ZI está prevista para a Semana~5 do cronograma (Quadro~\ref{qua:cronograma-migracao}).
+
+\subsection{Testes de Unidade e Regressão}
+\label{sub:testes-unidade}
+
+Os testes de unidade e regressão do bloco PID cobrem sete cenários (identificados A1 a A7), cada um definido por objetivo, procedimento numerado e critério de aceite formal, executados diretamente na bancada (CLP + cabo serial, sem planta HIL).
+O Quadro~\ref{qua:testes-unidade} resume os sete cenários.
+
+\begin{table}[htb]
+    \centering
+    \caption{Testes de unidade e regressão do bloco PID}
+    \label{qua:testes-unidade}
+    \begin{tabular}{|l|l|p{6.5cm}|}
+        \hline
+        ID & Cenário & Critério de aceite \\
+        \hline
+        A1 & \texttt{EN} armazenado via \texttt{ST} & \texttt{EN} e \texttt{Q} caem no ciclo seguinte ao desligamento; \texttt{CV} vai a \texttt{outMin}; \texttt{INTEGRAL} é preservado (não é zerado). \\
+        A2 & \texttt{CV} sem truncamento de 4 \textit{bits} & \texttt{AO4} (saída física) é sempre igual a \texttt{PID0.CV}, sem colisão de índice. \\
+        A3 & \texttt{RESET} & Integrador zerado e \texttt{CV = outMin} durante o \texttt{RESET}; retomada normal ao soltar. \\
+        A4 & \textit{Bumpless transfer} (Manual $\leftrightarrow$ Automático) & \texttt{CV} não apresenta salto abrupto em nenhuma das duas transições. \\
+        A5 & Banda morta (\textit{deadband}) & \texttt{CV} permanece constante enquanto $\lvert SP - PV \rvert$ está dentro da banda. \\
+        A6 & \textit{Setpoint} dinâmico & \texttt{PV} converge ao novo \texttt{SP} após cada variação, sem oscilação sustentada. \\
+        A7 & Ausência de colisão entre campos do PID & Cada campo do protocolo de depuração retorna um valor distinto e plausível. \\
+        \hline
+    \end{tabular}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026), adaptado do plano de testes do bloco PID.\par}
+\end{table}
+
+Os cenários A1 e A2 correspondem à correção de dois defeitos identificados durante o desenvolvimento do bloco PID: no primeiro, o bit \texttt{EN} era lido diretamente do acumulador lógico da \textit{rung} no instante da instrução \texttt{PID}, herdando o resultado de qualquer lógica anterior que reutilizasse esse acumulador; a correção seguiu o mesmo padrão já empregado pelos blocos \texttt{Timer} e \texttt{Counter} --- armazenar o bit em uma instrução \texttt{ST} dedicada, em \textit{rung} própria, e ler o valor já persistido no mapa de memória do bloco, não o acumulador --- eliminando essa classe de erro por reutilizar uma solução já validada em vez de introduzir uma nova.
+No segundo defeito, o campo que seleciona qual sub-campo do bloco PID está sendo lido ou escrito por uma instrução de \textit{word} (\texttt{TYPE\_AUX}) dispõe de apenas 4 \textit{bits} no formato do bytecode (Seção~\ref{sec:vm-isa}), suficientes para 16 valores; o enumerador original, porém, possuía 20 membros, o que fazia o índice de \texttt{CV} colidir, por aritmética de módulo, com o de \texttt{RESET}.
+A correção adotada --- dividir o enumerador em três, um para instruções de \textit{bit} (7 valores), um para instruções de \textit{word} (13 valores) e um exclusivo do protocolo de depuração, que não possui essa limitação de 4 \textit{bits} (20 valores) --- é justificada pelo próprio opcode da instrução: como a família da instrução (\textit{bit} ou \textit{word}) já é conhecida no momento da decodificação, cada enumerador cabe confortavelmente no espaço de 4 \textit{bits} correspondente, sem necessidade de comprimir 20 significados em um único espaço de 16 valores.
+
+\subsection{Teste de Integração do Protocolo de Comunicação}
+\label{sub:teste-integracao}
+
+O protocolo de comunicação simplificado (Seção~\ref{sec:hal-comunicacao}) é validado por um teste de integração automatizado que injeta, via porta serial real, pacotes propositalmente malformados --- comando inválido, tamanho inconsistente, CRC incorreto, identificador de \textit{hardware} inválido, entre outros --- e verifica se o firmware responde com o código de \texttt{NACK} correto para cada categoria de erro, registrando o resultado de cada cenário em um arquivo de \textit{log}.
+Esse teste difere dos testes de unidade da Seção~\ref{sub:testes-unidade} por dois aspectos: primeiro, ele não testa um bloco funcional da lógica \textit{Ladder}, mas a máquina de estados do próprio protocolo de comunicação, camada mais baixa da pilha de software; segundo, por ser escrito em um roteiro executável (não um procedimento manual), o veredito de cada cenário --- aprovado ou reprovado --- é determinado automaticamente pela comparação entre o código de \texttt{NACK} recebido e o esperado, o que o caracteriza como teste de integração automatizado, e não como teste manual de bancada.
+A escolha de validar justamente as respostas de erro, e não apenas o caminho de sucesso, justifica-se pelo próprio papel do protocolo simplificado: como a autenticação por desafio-resposta foi deliberadamente removida do escopo desta implementação (Seção~\ref{sec:hal-comunicacao}), a rejeição correta de pacotes malformados passa a ser a principal barreira de robustez do canal de comunicação contra ruído ou uso incorreto da ferramenta de \textit{host}.
+
+\subsection{Testes de Sistema, Aceitação e Desempenho}
+\label{sub:testes-sistema}
+
+Os testes de sistema validam o bloco PID em malha fechada real, com o firmware em execução no microcontrolador conectado, por meio de um instrumento de aquisição analógica (\textit{Analog Discovery 3}), a uma planta industrial simulada em tempo real no \textit{MATLAB}: o sinal de controle (\texttt{CV}) sai por uma saída analógica real e retorna, após ser processado pelo modelo da planta, por uma entrada analógica real --- caracterizando um ensaio \textit{Hardware-in-the-Loop} (\textit{HIL}), no qual apenas a física do processo é virtual.
+Optou-se deliberadamente por não utilizar o bloco de controle genérico do \textit{Simulink} para fechar essa malha: ele não reproduz o mecanismo de \textit{anti-windup} por \textit{back-calculation} nem a lógica de saturação implementados no firmware real, de modo que fechar a malha com ele estaria validando um controlador diferente daquele que este trabalho propõe validar.
+
+O mesmo controlador (ganhos fixos, $K_p=0{,}4$, $K_i=0{,}05$, $K_d=0$) foi ensaiado contra cinco arquétipos clássicos de processo industrial, escolhidos por cobrirem, em conjunto, praticamente qualquer dinâmica de processo real encontrada na prática de controle: primeira ordem rápida, primeira ordem lenta (para expor problemas de \textit{windup} integral), primeira ordem com atraso de transporte (o modelo mais comum de processo industrial real), integrador puro (processo sem autorregulação) e segunda ordem subamortecida (processos mecânicos ressonantes).
+A decisão de manter $K_d=0$ em todos os ensaios é deliberada, não uma limitação: o termo derivativo, calculado sobre a variável medida, amplifica diretamente o ruído do conversor analógico-digital, e essa característica está documentada como comentário no próprio código-fonte de \texttt{VmInstr\_Control.c}.
+A Tabela~\ref{tab:resultados-hil} apresenta os resultados quantitativos obtidos, com o critério de acomodação definido como o primeiro instante, após o acionamento do controlador, a partir do qual $\lvert PV - SP \rvert \leq 2$ e essa condição não é mais violada até o fim da janela de observação.
+
+\begin{table}[htb]
+    \centering
+    \caption{Resultados dos ensaios HIL para os cinco arquétipos de planta}
+    \label{tab:resultados-hil}
+    \begin{tabular}{|l|c|c|}
+        \hline
+        Arquétipo de planta & \textit{Overshoot} máximo & Tempo de acomodação \\
+        \hline
+        1 --- Primeira ordem rápida & 0,3\% & 4,0 s \\
+        2 --- Primeira ordem lenta & 26,7\% & 76,1 s \\
+        3 --- Atraso de transporte (ganhos originais) & 47,2\% & 80,1 s (não convergiu na janela) \\
+        4 --- Integrador puro & 6,2\% & 34,0 s \\
+        5 --- Segunda ordem subamortecida & 42,2\% & 28,9 s \\
+        \hline
+    \end{tabular}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026), calculado automaticamente a partir dos registros dos ensaios.\par}
+\end{table}
+
+O arquétipo de atraso de transporte (Planta 3) revelou o pior caso da bateria --- \textit{overshoot} de 47,2\% e sinal de ciclo-limite, com a saída de controle saturando repetidamente em zero --- resultado esperado teoricamente, já que o atraso de transporte reduz a margem de fase de forma mais severa do que a lentidão isolada (Planta 2) ou a ausência de autorregulação (Planta 4), mas cuja magnitude só foi conhecida empiricamente por meio deste ensaio.
+Um reajuste de ganhos foi então aplicado a essa planta, com base na heurística clássica $T_i \approx \tau + 2L$ para processos com atraso de transporte: os ganhos foram ajustados de $K_p=0{,}4$/$K_i=0{,}05$ para $K_p=0{,}3$/$K_i=0{,}02$, reduzindo o \textit{overshoot} de 47,2\% para 0,10\% e o tempo de acomodação de 80,1~s (sem convergência plena na janela original) para 16,0~s.
+Esse caso de reajuste é apresentado não apenas como correção pontual, mas como evidência de que a bateria de cinco arquétipos é suficiente para expor, de forma quantificada, uma fragilidade de sintonia que uma validação em malha aberta ou de arquétipo único não revelaria: o mesmo controlador, com os mesmos ganhos, comporta-se de forma satisfatória em quatro das cinco plantas e criticamente subamortecido na quinta, confirmando que o ajuste de um controlador PID é inerentemente dependente do processo, e não uma propriedade apenas do algoritmo.
+
+\begin{figure}[htb]
+    \centering
+    \fbox{\begin{minipage}{0.85\textwidth}
+        \centering
+        \vspace{1.5cm}
+        \textit{Figura a inserir: diagrama de blocos da malha HIL (CLP --- saída analógica AO4 $\rightarrow$ Analog Discovery 3 $\rightarrow$ MATLAB, executando o modelo da planta $\rightarrow$ Analog Discovery 3 $\rightarrow$ CLP --- entrada analógica AI3), com a malha de realimentação fechada explicitamente desenhada.}
+        \vspace{1.5cm}
+    \end{minipage}}
+    \caption{Malha de ensaio \textit{Hardware-in-the-Loop}}
+    \label{fig:malha-hil}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{figure}
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Síntese}
+\label{sec:sintese-implementacao}
+
+Este capítulo apresentou os aspectos de implementação da solução cujos fundamentos teóricos foram estabelecidos no Capítulo~\ref{cap:fundamentacao}: um motor de execução \textit{fetch-decode-execute} com conjunto de instruções de largura fixa e despacho em tempo constante; uma camada de abstração de \textit{hardware} cuja fronteira de portabilidade é evidenciada pela proporção de apenas 4 em 66 arquivos que concentram acesso direto a periféricos; um plano de implementação para o STM32F767ZI delimitado por essa mesma fronteira; e uma estratégia de validação em três níveis --- unidade/regressão, integração e sistema/desempenho --- já parcialmente executada, com resultados quantificados que comprovam tanto o funcionamento do bloco PID corrigido quanto os limites de sintonia de um controlador fixo frente a arquétipos de processo distintos.
+As lacunas ainda abertas na data de fechamento deste capítulo --- implementação da \textit{HAL} efetivamente concluída no STM32F767ZI, modelo Stateflow construído e validação cruzada entre modelo e \textit{VM} real --- seguem o cronograma do Quadro~\ref{qua:cronograma-migracao} e serão incorporadas como atualização deste capítulo antes da defesa deste trabalho.

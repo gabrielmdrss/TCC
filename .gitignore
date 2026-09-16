@@ -1,0 +1,24 @@
+# Artefatos de build do LaTeX (gerados a cada compilação pdflatex/bibtex)
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.bbl
+*.bcf
+*.blg
+*.brf
+*.run.xml
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.nav
+*.snm
+*.vrb
+*.idx
+*.ilg
+*.ind
+
+# PDF final — gerado localmente pela receita do LaTeX Workshop, não é fonte
+main.pdf
