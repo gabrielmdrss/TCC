@@ -12,29 +12,35 @@ Como o motor de execução da máquina virtual não acessa periféricos fora do 
 \section{Testes de unidade e regressão}
 \label{sec:ape-pid-unidade}
 
-Os testes de unidade e regressão cobrem sete cenários, identificados de A1 a A7 (caso B2 da Tabela~\ref{tab:catalogo-testes}), cada um definido por objetivo, procedimento numerado e critério de aceite, e executados diretamente na bancada, sem planta simulada.
-A Tabela~\ref{tab:ape-unidade-pid} resume os cenários.
+Os testes de unidade e regressão cobrem sete cenários, identificados de A1 a A7 (caso B2 do Quadro~\ref{qua:testes-controle}), cada um definido por objetivo, procedimento numerado e critério de aceite, e executados diretamente na bancada, sem planta simulada.
+O Quadro~\ref{qua:ape-unidade-pid} resume os cenários.
 
-\begin{table}[htb]
+\begin{quadro}[htb]
     \centering
-    \caption{Testes de unidade e regressão do bloco PID}
-    \label{tab:ape-unidade-pid}
     \begin{tabular}{|l|p{4.6cm}|p{7.6cm}|}
         \hline
         ID & Cenário & Critério de aceite \\
         \hline
         A1 & \texttt{EN} armazenado por \texttt{ST} & \texttt{EN} e \texttt{Q} caem na varredura seguinte ao desligamento; \texttt{CV} vai ao limite mínimo; \texttt{INTEGRAL} é preservado. \\
+        \hline
         A2 & \texttt{CV} sem truncamento de 4 \textit{bits} & A saída analógica é sempre igual a \texttt{CV}, sem colisão de índice de sub-tipo. \\
+        \hline
         A3 & \texttt{RESET} & Integrador zerado e \texttt{CV} igual ao limite mínimo durante o \texttt{RESET}; retomada normal ao soltar. \\
+        \hline
         A4 & Transferência sem salto (manual $\leftrightarrow$ automático) & \texttt{CV} não apresenta salto abrupto em nenhuma das duas transições. \\
+        \hline
         A5 & Banda morta & \texttt{CV} permanece constante enquanto $\lvert SP - PV \rvert$ está dentro da banda. \\
+        \hline
         A6 & \textit{Setpoint} dinâmico & \texttt{PV} converge ao novo \texttt{SP} após cada variação, sem oscilação sustentada. \\
+        \hline
         A7 & Ausência de colisão entre campos do PID & Cada campo do protocolo de depuração retorna um valor distinto e plausível. \\
         \hline
     \end{tabular}
 
-    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
-\end{table}
+    \caption{Testes de unidade e regressão do bloco PID}
+    \label{qua:ape-unidade-pid}
+    \fonte{Elaborado pelo autor (2026).}
+\end{quadro}
 
 Os cenários A1 e A2 correspondem à correção de dois defeitos identificados durante o desenvolvimento do bloco.
 No primeiro, o bit \texttt{EN} era lido diretamente do acumulador lógico no instante da instrução \texttt{PID}, herdando o resultado de qualquer lógica anterior que reutilizasse o acumulador; a correção adotou o padrão já empregado por temporizadores e contadores, no qual o bit é armazenado por uma instrução \texttt{ST} dedicada, em \textit{rung} própria, e lido do mapa de memória do bloco.
@@ -52,9 +58,9 @@ A Figura~\ref{fig:malha-hil} ilustra a malha.
 \begin{figure}[htb]
     \centering
     \begin{tikzpicture}[x=1cm,y=1cm]
-        \node[bloco, minimum width=3.0cm, minimum height=14mm, font=\footnotesize] (fw) at (0,0) {Máquina virtual\\(bloco PID no\\\textit{firmware})};
-        \node[bloco, minimum width=3.0cm, minimum height=14mm, font=\footnotesize] (ad) at (5.2,0) {\textit{Analog}\\\textit{Discovery 3}\\(saída e entrada)};
-        \node[bloco, minimum width=3.0cm, minimum height=14mm, font=\footnotesize] (pl) at (10.4,0) {\textit{MATLAB}:\\modelo da\\planta};
+        \node[bloco, fill=corVM, minimum width=3.0cm, minimum height=14mm, font=\footnotesize] (fw) at (0,0) {Máquina virtual\\(bloco PID no\\\textit{firmware})};
+        \node[bloco, fill=corCom, minimum width=3.0cm, minimum height=14mm, font=\footnotesize] (ad) at (5.2,0) {\textit{Analog}\\\textit{Discovery 3}\\(saída e entrada)};
+        \node[bloco, fill=corApp, minimum width=3.0cm, minimum height=14mm, font=\footnotesize] (pl) at (10.4,0) {\textit{MATLAB}:\\modelo da\\planta};
         \draw[seta] ([yshift=3mm]fw.east) -- node[rotulo, above=1pt, fill=none] {\texttt{CV}} ([yshift=3mm]ad.west);
         \draw[seta] ([yshift=3mm]ad.east) -- node[rotulo, above=1pt, fill=none] {\texttt{CV}} ([yshift=3mm]pl.west);
         \draw[seta] ([yshift=-3mm]pl.west) -- node[rotulo, below=1pt, fill=none] {\texttt{PV}} ([yshift=-3mm]ad.east);
@@ -63,7 +69,7 @@ A Figura~\ref{fig:malha-hil} ilustra a malha.
     \caption{Malha de ensaio \textit{Hardware-in-the-Loop}}
     \label{fig:malha-hil}
 
-    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+    \fonte{Elaborado pelo autor (2026).}
 \end{figure}
 
 A malha é fechada pelo bloco PID do firmware, e não por um bloco de controle genérico do \textit{Simulink}, para que o algoritmo ensaiado seja exatamente o implementado --- com amostragem fixa, derivativo sobre a variável medida, anti-\textit{windup} por integração condicional e limitação de saída --- e não uma aproximação dele.
@@ -77,7 +83,7 @@ A Tabela~\ref{tab:resultados-hil} apresenta os resultados, calculados automatica
     \centering
     \caption{Resultados dos ensaios HIL para os cinco arquétipos de planta}
     \label{tab:resultados-hil}
-    \begin{tabular}{|p{6.4cm}|c|p{4.2cm}|}
+    \begin{tabular}{p{6.4cm}cp{4.2cm}}
         \hline
         Arquétipo de planta & \textit{Overshoot} máximo & Tempo de acomodação \\
         \hline
@@ -88,8 +94,8 @@ A Tabela~\ref{tab:resultados-hil} apresenta os resultados, calculados automatica
         5 --- Segunda ordem subamortecida & 42,2\% & 28,9 s \\
         \hline
     \end{tabular}
-
-    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+    \vspace{14pt}
+    \fonte{Elaborado pelo autor (2026).}
 \end{table}
 
 O arquétipo de atraso de transporte (planta 3) apresentou o pior caso da bateria, com \textit{overshoot} de 47,2\% e sinal de ciclo-limite, com a saída de controle saturando repetidamente em zero.

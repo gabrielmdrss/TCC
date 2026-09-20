@@ -15,10 +15,14 @@
 \usepackage{titletoc}
 \usepackage[fixlanguage]{babelbib}
 \usepackage[font=small,format=plain,labelfont=bf,up,textfont=it,up]{caption}
+\captionsetup{skip=8pt}                 % distância entre a legenda e a tabela/figura
+\usepackage{newfloat}                   % ambiente "quadro": conteúdo textual/qualitativo (NBR 14724; IBGE reserva "tabela" a dados numéricos)
+\DeclareFloatingEnvironment[fileext=loq,listname={Lista de Quadros},name=Quadro,within=chapter]{quadro}
 \usepackage[usenames,svgnames,dvipsnames]{xcolor}
 \usepackage[a4paper,top=2.54cm,bottom=2.0cm,left=2.0cm,right=2.54cm]{geometry} % margens
 \usepackage[pdftex,plainpages=false,pdfpagelabels,pagebackref,colorlinks=true,citecolor=black,linkcolor=black,urlcolor=black,filecolor=black,bookmarksopen=true]{hyperref} % links em preto
 \usepackage[all]{hypcap}                % soluciona o problema com o hyperref e capitulos
+\renewcommand*{\hypcapspace}{0pt}       % sem folga extra entre a legenda e a linha de fonte
 \usepackage{indentfirst}                % recuo também no primeiro parágrafo após título (norma ABNT)
 
 \usepackage{color} % colorir texto
@@ -31,6 +35,22 @@
 \usepackage{pdfpages}
 \usepackage{tikz}                       % diagramas do capítulo de implementação
 \usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit,calc,backgrounds}
+
+% Paleta das figuras (tons claros; o texto preto mantém contraste, inclusive em impressão)
+\definecolor{corApp}{RGB}{219,232,247}      % programa / dados do usuário
+\definecolor{corVM}{RGB}{232,222,245}       % máquina virtual / execução
+\definecolor{corMem}{RGB}{224,241,220}      % memória / saídas
+\definecolor{corCom}{RGB}{252,232,210}      % comunicação / entradas
+\definecolor{corHAL}{RGB}{222,222,222}      % camada de abstração
+\definecolor{corHW}{RGB}{255,243,196}       % microcontrolador / decisão
+\definecolor{corErr}{RGB}{248,215,212}      % erro / reset
+\definecolor{corRos}{RGB}{247,221,235}      % blocos funcionais
+
+% Linha de fonte de figuras, quadros e tabelas: mesmo tamanho da legenda,
+% espaçamento simples (seção 2.3.3 do manual IFPB-CG). Vem logo abaixo da legenda
+% (figuras e quadros, cuja legenda fica embaixo) ou abaixo da tabela, caso em que
+% se acrescenta \vspace{14pt} antes (tabelas têm a legenda em cima).
+\newcommand{\fonte}[1]{\par\nointerlineskip\vspace{-7pt}{\centering\small\singlespacing Fonte: #1\par}}
 
 
 % ---------------------------------------------------------------------------- %
