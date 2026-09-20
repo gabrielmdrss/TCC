@@ -1,0 +1,98 @@
+% !TeX root = ../main.tex
+\addtocontents{toc}{\protect\let\protect\numberline\protect\apendiceNumberline}
+\chapter{Ensaios do Bloco de Controle PID}
+\label{ape:pid}
+\addtocontents{toc}{\protect\let\protect\numberline\protect\numberlineorig}
+
+Este apêndice registra os ensaios já realizados sobre o bloco PID descrito na Seção~\ref{sub:blocos-funcionais} e cuja máquina de modos é especificada na Seção~\ref{sec:stateflow-mbd}: testes de unidade e regressão e ensaios em malha fechada com \textit{Hardware-in-the-Loop} (\textit{HIL}).
+Ambos foram executados na plataforma de desenvolvimento do firmware.
+Como o motor de execução da máquina virtual não acessa periféricos fora do contrato da camada de abstração (Seção~\ref{sec:hal-implementacao}), o comportamento validado independe do microcontrolador; a repetição dos ensaios no STM32F767ZI será registrada neste apêndice quando executada.
+
+% ---------------------------------------------------------------------------- %
+\section{Testes de unidade e regressão}
+\label{sec:ape-pid-unidade}
+
+Os testes de unidade e regressão cobrem sete cenários, identificados de A1 a A7 (caso B2 da Tabela~\ref{tab:catalogo-testes}), cada um definido por objetivo, procedimento numerado e critério de aceite, e executados diretamente na bancada, sem planta simulada.
+A Tabela~\ref{tab:ape-unidade-pid} resume os cenários.
+
+\begin{table}[htb]
+    \centering
+    \caption{Testes de unidade e regressão do bloco PID}
+    \label{tab:ape-unidade-pid}
+    \begin{tabular}{|l|p{4.6cm}|p{7.6cm}|}
+        \hline
+        ID & Cenário & Critério de aceite \\
+        \hline
+        A1 & \texttt{EN} armazenado por \texttt{ST} & \texttt{EN} e \texttt{Q} caem na varredura seguinte ao desligamento; \texttt{CV} vai ao limite mínimo; \texttt{INTEGRAL} é preservado. \\
+        A2 & \texttt{CV} sem truncamento de 4 \textit{bits} & A saída analógica é sempre igual a \texttt{CV}, sem colisão de índice de sub-tipo. \\
+        A3 & \texttt{RESET} & Integrador zerado e \texttt{CV} igual ao limite mínimo durante o \texttt{RESET}; retomada normal ao soltar. \\
+        A4 & Transferência sem salto (manual $\leftrightarrow$ automático) & \texttt{CV} não apresenta salto abrupto em nenhuma das duas transições. \\
+        A5 & Banda morta & \texttt{CV} permanece constante enquanto $\lvert SP - PV \rvert$ está dentro da banda. \\
+        A6 & \textit{Setpoint} dinâmico & \texttt{PV} converge ao novo \texttt{SP} após cada variação, sem oscilação sustentada. \\
+        A7 & Ausência de colisão entre campos do PID & Cada campo do protocolo de depuração retorna um valor distinto e plausível. \\
+        \hline
+    \end{tabular}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{table}
+
+Os cenários A1 e A2 correspondem à correção de dois defeitos identificados durante o desenvolvimento do bloco.
+No primeiro, o bit \texttt{EN} era lido diretamente do acumulador lógico no instante da instrução \texttt{PID}, herdando o resultado de qualquer lógica anterior que reutilizasse o acumulador; a correção adotou o padrão já empregado por temporizadores e contadores, no qual o bit é armazenado por uma instrução \texttt{ST} dedicada, em \textit{rung} própria, e lido do mapa de memória do bloco.
+No segundo, o campo de sub-tipo, de apenas 4 \textit{bits} (16 valores), era indexado por um enumerador de 20 membros, de modo que o índice de \texttt{CV} colidia, por aritmética de módulo, com o de \texttt{RESET}; a correção dividiu o enumerador em três --- um para instruções de \textit{bit} (7 valores), um para instruções de palavra (13 valores) e um exclusivo do protocolo de depuração (20 valores, sem a limitação de 4 \textit{bits}) ---, o que é possível porque a família da instrução já é conhecida na decodificação.
+
+% ---------------------------------------------------------------------------- %
+\section{Ensaios em malha fechada (Hardware-in-the-Loop)}
+\label{sec:ape-pid-hil}
+
+Os ensaios em malha fechada validam o bloco PID com o firmware em execução no microcontrolador, ligado por um instrumento de aquisição analógica (\textit{Analog Discovery 3}) a uma planta simulada em tempo real no \textit{MATLAB}.
+O sinal de controle (\texttt{CV}) sai por uma saída analógica real e retorna, após ser processado pelo modelo da planta, por uma entrada analógica real; a física do processo é o único elemento virtual, o que caracteriza o ensaio como \textit{HIL} \cite{isermann:1999}.
+O deslocamento de 0,3 V do conversor digital-analógico do instrumento é compensado no \textit{script} de ensaio.
+A Figura~\ref{fig:malha-hil} ilustra a malha.
+
+\begin{figure}[htb]
+    \centering
+    \begin{tikzpicture}[x=1cm,y=1cm]
+        \node[bloco, minimum width=3.0cm, minimum height=14mm, font=\footnotesize] (fw) at (0,0) {Máquina virtual\\(bloco PID no\\\textit{firmware})};
+        \node[bloco, minimum width=3.0cm, minimum height=14mm, font=\footnotesize] (ad) at (5.2,0) {\textit{Analog}\\\textit{Discovery 3}\\(saída e entrada)};
+        \node[bloco, minimum width=3.0cm, minimum height=14mm, font=\footnotesize] (pl) at (10.4,0) {\textit{MATLAB}:\\modelo da\\planta};
+        \draw[seta] ([yshift=3mm]fw.east) -- node[rotulo, above=1pt, fill=none] {\texttt{CV}} ([yshift=3mm]ad.west);
+        \draw[seta] ([yshift=3mm]ad.east) -- node[rotulo, above=1pt, fill=none] {\texttt{CV}} ([yshift=3mm]pl.west);
+        \draw[seta] ([yshift=-3mm]pl.west) -- node[rotulo, below=1pt, fill=none] {\texttt{PV}} ([yshift=-3mm]ad.east);
+        \draw[seta] ([yshift=-3mm]ad.west) -- node[rotulo, below=1pt, fill=none] {\texttt{PV}} ([yshift=-3mm]fw.east);
+    \end{tikzpicture}
+    \caption{Malha de ensaio \textit{Hardware-in-the-Loop}}
+    \label{fig:malha-hil}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{figure}
+
+A malha é fechada pelo bloco PID do firmware, e não por um bloco de controle genérico do \textit{Simulink}, para que o algoritmo ensaiado seja exatamente o implementado --- com amostragem fixa, derivativo sobre a variável medida, anti-\textit{windup} por integração condicional e limitação de saída --- e não uma aproximação dele.
+
+O mesmo controlador, com ganhos fixos $K_p = 0{,}4$, $K_i = 0{,}05$ e $K_d = 0$, foi ensaiado contra cinco arquétipos clássicos de processo, escolhidos por cobrirem, em conjunto, as dinâmicas usuais da prática de controle: primeira ordem rápida, primeira ordem lenta (para expor o \textit{windup} integral), primeira ordem com atraso de transporte (o modelo mais comum de processo industrial), integrador puro (processo sem autorregulação) e segunda ordem subamortecida (processos mecânicos ressonantes).
+A escolha de $K_d = 0$ é deliberada: o termo derivativo, calculado sobre a variável medida, amplifica diretamente o ruído do conversor analógico-digital \cite{astrom:2006}.
+O critério de acomodação é o primeiro instante, após o acionamento do controlador, a partir do qual $\lvert PV - SP \rvert \leq 2$ e a condição não é mais violada até o fim da janela de observação.
+A Tabela~\ref{tab:resultados-hil} apresenta os resultados, calculados automaticamente a partir dos registros dos ensaios.
+
+\begin{table}[htb]
+    \centering
+    \caption{Resultados dos ensaios HIL para os cinco arquétipos de planta}
+    \label{tab:resultados-hil}
+    \begin{tabular}{|p{6.4cm}|c|p{4.2cm}|}
+        \hline
+        Arquétipo de planta & \textit{Overshoot} máximo & Tempo de acomodação \\
+        \hline
+        1 --- Primeira ordem rápida & 0,3\% & 4,0 s \\
+        2 --- Primeira ordem lenta & 26,7\% & 76,1 s \\
+        3 --- Atraso de transporte (ganhos originais) & 47,2\% & 80,1 s (não convergiu na janela) \\
+        4 --- Integrador puro & 6,2\% & 34,0 s \\
+        5 --- Segunda ordem subamortecida & 42,2\% & 28,9 s \\
+        \hline
+    \end{tabular}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{table}
+
+O arquétipo de atraso de transporte (planta 3) apresentou o pior caso da bateria, com \textit{overshoot} de 47,2\% e sinal de ciclo-limite, com a saída de controle saturando repetidamente em zero.
+O resultado é esperado teoricamente, já que o atraso de transporte reduz a margem de fase mais severamente do que a lentidão isolada (planta 2) ou a ausência de autorregulação (planta 4), mas a sua magnitude só foi conhecida pelo ensaio.
+Aplicou-se então um reajuste de ganhos a essa planta, com base na heurística clássica $T_i \approx \tau + 2L$ para processos com atraso de transporte: $K_p = 0{,}4$ e $K_i = 0{,}05$ foram alterados para $K_p = 0{,}3$ e $K_i = 0{,}02$, o que reduziu o \textit{overshoot} de 47,2\% para 0,10\% e o tempo de acomodação de 80,1~s (sem convergência plena na janela) para 16,0~s.
+O caso evidencia que a bateria de cinco arquétipos expõe, de forma quantificada, uma fragilidade de sintonia que a validação em malha aberta ou com uma única planta não revelaria: o mesmo controlador, com os mesmos ganhos, comporta-se de forma satisfatória em quatro das cinco plantas e é criticamente subamortecido na quinta, o que confirma que a sintonia de um PID depende do processo, e não apenas do algoritmo.

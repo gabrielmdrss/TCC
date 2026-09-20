@@ -1,0 +1,286 @@
+% !TeX root = ../main.tex
+\addtocontents{toc}{\protect\let\protect\numberline\protect\apendiceNumberline}
+\chapter{Especificação do Conjunto de Instruções}
+\label{ape:isa}
+\addtocontents{toc}{\protect\let\protect\numberline\protect\numberlineorig}
+
+Este apêndice detalha o conjunto de instruções da máquina virtual apresentado na Seção~\ref{sec:vm-isa}: convenções de codificação, tipos de operando, sub-tipos dos blocos funcionais e a descrição de cada um dos 76 opcodes.
+
+% ---------------------------------------------------------------------------- %
+\section{Convenções de codificação}
+\label{sec:ape-isa-convencoes}
+
+Toda instrução ocupa uma palavra de 4 \textit{bytes}, alinhada em palavra; instruções com operando imediato de 32 \textit{bits} ocupam uma palavra adicional imediatamente após a primeira, com o valor em ordem \textit{big-endian}.
+O \textit{byte} 0 contém o opcode nos 7 \textit{bits} menos significativos; o \textit{bit} 7 é reservado à depuração e mascarado antes do despacho.
+No formato genérico de operando (Figura~\ref{fig:formato-instrucao}), o \textit{byte} 1 contém o tipo do operando (4 \textit{bits}) e a parte alta do índice (4 \textit{bits}), e o \textit{byte} 2 contém a parte baixa do índice (4 \textit{bits}) e o sub-tipo (4 \textit{bits}), o que permite endereçar até 256 elementos por tipo; o \textit{byte} 3 é reservado, exceto nas instruções aritméticas, de conversão e de escalonamento, nas quais contém o índice do registrador de destino, e em \texttt{STW}, na qual contém o índice do bloco de destino.
+As instruções \texttt{PID}, \texttt{RAMP} e \texttt{PWM\_OUT} utilizam apenas o \textit{byte} 1 (índice da instância e base de tempo).
+Um opcode superior a \texttt{0x4B}, exceto \texttt{0x7F}, é inválido e provoca o estado de erro (\textit{trap}).
+
+A Tabela~\ref{tab:ape-tipos} lista os tipos de operando, e a Tabela~\ref{tab:ape-subtipos} os sub-tipos que selecionam o membro de um bloco funcional.
+
+\begin{table}[htb]
+    \centering
+    \caption{Tipos de operando}
+    \label{tab:ape-tipos}
+    \begin{tabular}{|c|l|p{7.6cm}|}
+        \hline
+        Código & Tipo & Descrição \\
+        \hline
+        \texttt{0x01} & \texttt{\%I} & Entrada digital física \\
+        \texttt{0x02} & \texttt{\%Q} & Saída digital física \\
+        \texttt{0x03} & \texttt{\%M} & Memória auxiliar (\textit{bit}) \\
+        \texttt{0x04} & \texttt{\%T} & Temporizador \\
+        \texttt{0x05} & \texttt{\%C} & Contador \\
+        \texttt{0x06} & \texttt{DR} & Registrador de dados de 32 \textit{bits} \\
+        \texttt{0x07} & \texttt{CONST} & Constante imediata (próxima palavra) \\
+        \texttt{0x08} & \texttt{\%AN} & Entrada analógica (somente \texttt{MOV} e \texttt{SCALE}) \\
+        \texttt{0x09} & \texttt{\%P} & Saída PWM (canais 1 a 3) \\
+        \texttt{0x0A} & \texttt{\%AO} & Saída analógica pura \\
+        \texttt{0x0B} & \texttt{\%PID} & Instância do bloco PID \\
+        \texttt{0x0C} & \texttt{\%RAMP} & Instância do bloco RAMP \\
+        \hline
+    \end{tabular}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{table}
+
+\begin{table}[htb]
+    \centering
+    \caption{Sub-tipos de operando dos blocos funcionais}
+    \label{tab:ape-subtipos}
+    \begin{tabular}{|l|p{3.1cm}|p{7.3cm}|}
+        \hline
+        Bloco & Sub-tipo & Valores \\
+        \hline
+        Temporizador & \textit{Bit} / palavra & \texttt{EN}=0, \texttt{Q}=1 / \texttt{ET}=2 (tempo decorrido), \texttt{PT}=3 (tempo programado) \\
+        \hline
+        Contador & \textit{Bit} / palavra & \texttt{EN}=0, \texttt{CU}=1, \texttt{CD}=2, \texttt{RST}=3, \texttt{LOAD}=4, \texttt{QU}=5, \texttt{QD}=6 / \texttt{CV}=7 (valor atual), \texttt{PV}=8 (valor programado) \\
+        \hline
+        PID & \textit{Bit} (entradas) & \texttt{EN}=0, \texttt{RESET}=1, \texttt{MANUAL}=2 \\
+        & \textit{Bit} (saídas) & \texttt{Q}=3, \texttt{AT\_MAX}=4, \texttt{AT\_MIN}=5, \texttt{MAN\_O}=6 \\
+        & Palavra F32 (saídas) & \texttt{CV}=0, \texttt{ERROR}=1, \texttt{INTEGRAL}=2 \\
+        \hline
+        RAMP & \textit{Bit} & \texttt{EN}=0 (entrada), \texttt{Q}=1 (saída: \texttt{OUT} igual a \texttt{TARGET}) \\
+        & Palavra F32 & \texttt{OUT}=0, \texttt{TARGET}=1, \texttt{INIT}=2, \texttt{ASCEND}=3, \texttt{DESCEND}=4 \\
+        \hline
+        PWM / saída analógica & Palavra & \texttt{DUTY} (0 a 10000, resolução de 0,01\%) e \texttt{FREQ} (10 a 1000 Hz) \\
+        \hline
+    \end{tabular}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{table}
+
+Os parâmetros de entrada de \texttt{PWM}, \texttt{PID} e \texttt{RAMP} são escritos pela instrução \texttt{STW}, que grava em um membro de bloco o valor de uma fonte (registrador ou constante \textit{IEEE-754}) de forma incondicional a cada varredura; a Tabela~\ref{tab:ape-stw} lista os destinos.
+
+\begin{table}[htb]
+    \centering
+    \caption{Destinos da instrução \texttt{STW}}
+    \label{tab:ape-stw}
+    \begin{tabular}{|c|p{5.5cm}|c|p{5.5cm}|}
+        \hline
+        Código & Destino & Código & Destino \\
+        \hline
+        \texttt{0x00} & PWM: \textit{duty} (0 a 10000) & \texttt{0x09} & PID: limite máximo de saída \\
+        \texttt{0x01} & PWM: frequência (10 a 1000 Hz) & \texttt{0x0A} & PID: valor manual de \texttt{CV} \\
+        \texttt{0x02} & PID: \textit{setpoint} & \texttt{0x0B} & PID: tempo de amostragem \\
+        \texttt{0x03} & PID: variável de processo & \texttt{0x0C} & RAMP: valor alvo \\
+        \texttt{0x04} & PID: ganho proporcional & \texttt{0x0D} & RAMP: taxa máxima de subida \\
+        \texttt{0x05} & PID: ganho integral (1/s) & \texttt{0x0E} & RAMP: taxa máxima de descida \\
+        \texttt{0x06} & PID: tempo derivativo (s) & \texttt{0x0F} & RAMP: múltiplo da base de tempo \\
+        \texttt{0x07} & PID: banda morta & \texttt{0x10} & RAMP: valor inicial \\
+        \texttt{0x08} & PID: limite mínimo de saída & & \\
+        \hline
+    \end{tabular}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{table}
+
+% ---------------------------------------------------------------------------- %
+\section{Instruções de controle de fluxo e pilhas}
+\label{sec:ape-isa-fluxo}
+
+A máquina mantém um acumulador booleano e uma pilha lógica de 16 posições, para ramificações, e uma pilha de blocos de 16 posições, para a associação de trechos de \textit{rung}.
+
+\begingroup\singlespacing
+\begin{longtable}{|l|c|p{9.4cm}|}
+    \caption{Instruções de controle de fluxo e pilhas}
+    \label{tab:ape-fluxo}\\
+    \hline
+    Mnemônico & Opcode & Operação \\
+    \hline
+    \endfirsthead
+    \hline
+    Mnemônico & Opcode & Operação \\
+    \hline
+    \endhead
+    \hline
+    \endfoot
+    \texttt{NOP} & \texttt{0x00} & Nenhuma operação; preserva o alinhamento do programa. \\
+    \texttt{SOR} & \texttt{0x01} & Início de \textit{rung}: zera as pilhas e inicializa o acumulador em verdadeiro; o \textit{byte} 1 carrega o número da \textit{rung}, usado em depuração. \\
+    \texttt{MPS} & \texttt{0x12} & Empilha o acumulador na pilha lógica; provoca \textit{trap} se a pilha estiver cheia. \\
+    \texttt{MRD} & \texttt{0x13} & Copia o topo da pilha lógica para o acumulador, sem desempilhar. \\
+    \texttt{MPP} & \texttt{0x14} & Desempilha o topo da pilha lógica para o acumulador. \\
+    \texttt{ANB} & \texttt{0x15} & \textit{E} lógico entre o valor desempilhado da pilha de blocos e o acumulador (circuitos em série). \\
+    \texttt{ORB} & \texttt{0x16} & \textit{OU} lógico entre o valor desempilhado da pilha de blocos e o acumulador (circuitos em paralelo). \\
+    \texttt{EOS} & \texttt{0x7F} & Fim de varredura: encerra o laço de execução. \\
+\end{longtable}
+\endgroup
+
+% ---------------------------------------------------------------------------- %
+\section{Contatos, lógica booleana e bobinas}
+\label{sec:ape-isa-bit}
+
+As instruções de \textit{bit} aceitam como operando os tipos \texttt{\%I}, \texttt{\%Q}, \texttt{\%M}, e os membros booleanos de temporizadores, contadores, blocos PID e RAMP.
+As instruções sensíveis a borda comparam o valor atual do operando com o da varredura anterior, mantido em um mapa de últimos valores.
+
+\begingroup\singlespacing
+\begin{longtable}{|l|c|p{9.4cm}|}
+    \caption{Contatos, lógica booleana e bobinas}
+    \label{tab:ape-bit}\\
+    \hline
+    Mnemônico & Opcode & Operação \\
+    \hline
+    \endfirsthead
+    \hline
+    Mnemônico & Opcode & Operação \\
+    \hline
+    \endhead
+    \hline
+    \endfoot
+    \texttt{ST} & \texttt{0x02} & Armazena o acumulador diretamente em um membro de bloco funcional (por exemplo, \texttt{EN} de um temporizador). \\
+    \texttt{LD} & \texttt{0x03} & Carrega o operando no acumulador. \\
+    \texttt{LDN} & \texttt{0x04} & Carrega o complemento do operando. \\
+    \texttt{LDP} & \texttt{0x05} & Carrega verdadeiro se o operando fez transição de 0 para 1 desde a varredura anterior. \\
+    \texttt{LDF} & \texttt{0x06} & Carrega verdadeiro se o operando fez transição de 1 para 0. \\
+    \texttt{AND} & \texttt{0x07} & \textit{E} entre o acumulador e o operando. \\
+    \texttt{ANDN} & \texttt{0x08} & \textit{E} entre o acumulador e o complemento do operando. \\
+    \texttt{ANP} & \texttt{0x09} & \textit{E} entre o acumulador e a borda de subida do operando. \\
+    \texttt{ANF} & \texttt{0x0A} & \textit{E} entre o acumulador e a borda de descida do operando. \\
+    \texttt{OR} & \texttt{0x0B} & \textit{OU} entre o acumulador e o operando. \\
+    \texttt{ORN} & \texttt{0x0C} & \textit{OU} entre o acumulador e o complemento do operando. \\
+    \texttt{ORP} & \texttt{0x0D} & \textit{OU} entre o acumulador e a borda de subida do operando. \\
+    \texttt{ORF} & \texttt{0x0E} & \textit{OU} entre o acumulador e a borda de descida do operando. \\
+    \texttt{NOT} & \texttt{0x0F} & Inverte o acumulador. \\
+    \texttt{XOR} & \texttt{0x10} & \textit{OU} exclusivo entre o acumulador e o operando. \\
+    \texttt{XORN} & \texttt{0x11} & \textit{OU} exclusivo entre o acumulador e o complemento do operando. \\
+    \texttt{OUT} & \texttt{0x17} & Escreve o acumulador em uma saída ou memória auxiliar. \\
+    \texttt{SET} & \texttt{0x18} & Se o acumulador for verdadeiro, escreve 1 no operando; caso contrário, ignora. Para saídas, o valor é retido entre varreduras. \\
+    \texttt{RESET} & \texttt{0x19} & Se o acumulador for verdadeiro, escreve 0 no operando; caso contrário, ignora. \\
+    \texttt{TOGGLE} & \texttt{0x1A} & Inverte o operando a cada transição do acumulador de 0 para 1. \\
+\end{longtable}
+\endgroup
+
+% ---------------------------------------------------------------------------- %
+\section{Temporizadores e contadores}
+\label{sec:ape-isa-tc}
+
+\begingroup\singlespacing
+\begin{longtable}{|l|c|p{9.4cm}|}
+    \caption{Instruções de temporização e contagem}
+    \label{tab:ape-tc}\\
+    \hline
+    Mnemônico & Opcode & Operação \\
+    \hline
+    \endfirsthead
+    \hline
+    Mnemônico & Opcode & Operação \\
+    \hline
+    \endhead
+    \hline
+    \endfoot
+    \texttt{TIM} & \texttt{0x1B} & Executa uma instância de temporizador (32 instâncias). Campos: tipo (\textit{TON}, \textit{TOF} ou \textit{TP}), índice da instância, origem do tempo programado (constante imediata ou registrador) e base de tempo (10 ms, 100 ms, 1 s ou 1 min). O bit \texttt{EN} é armazenado previamente por \texttt{ST}. \textit{TON}: \texttt{Q} verdadeiro após o tempo programado decorrido desde a borda de subida de \texttt{EN}. \textit{TOF}: \texttt{Q} verdadeiro enquanto \texttt{EN} verdadeiro e por mais o tempo programado após a borda de descida. \textit{TP}: pulso de duração programada a partir da borda de subida, não retentável. \\
+    \texttt{COUNT} & \texttt{0x1C} & Executa uma instância de contador (32 instâncias). Campos: tipo (\textit{CTU}, \textit{CTD} ou \textit{CTUD}), índice da instância e origem do valor programado (constante imediata ou registrador). Entradas \texttt{EN}, \texttt{CU}, \texttt{CD}, \texttt{RST} e \texttt{LOAD} armazenadas por \texttt{ST}; saídas \texttt{QU} (valor atual maior ou igual ao programado) e \texttt{QD} (valor atual não positivo); valor atual de 32 \textit{bits} com sinal. \\
+\end{longtable}
+\endgroup
+
+% ---------------------------------------------------------------------------- %
+\section{Aritmética, comparação, conversão e escalonamento}
+\label{sec:ape-isa-num}
+
+As operações numéricas existem em duas versões, \textit{S32} (inteiro de 32 \textit{bits} com sinal) e \textit{F32} (ponto flutuante de precisão simples); os dois opcodes de cada linha da Tabela~\ref{tab:ape-aritmetica} são apresentados nessa ordem.
+As operações binárias seguem o padrão \texttt{LDW} (carrega o primeiro operando no acumulador de palavra) seguido da operação com um segundo operando e gravação em um registrador de destino.
+Fontes aceitas em \textit{S32}: registrador, constante, temporizador e contador; em \textit{F32}: registrador, constante, blocos PID e RAMP (para usar um inteiro em contexto \textit{F32} aplica-se antes \texttt{ITOF}).
+
+\begingroup\singlespacing
+\begin{longtable}{|l|c|p{9.4cm}|}
+    \caption{Aritmética e movimentação}
+    \label{tab:ape-aritmetica}\\
+    \hline
+    Mnemônico & Opcodes & Operação \\
+    \hline
+    \endfirsthead
+    \hline
+    Mnemônico & Opcodes & Operação \\
+    \hline
+    \endhead
+    \hline
+    \endfoot
+    \texttt{LDW} & \texttt{0x1D}/\texttt{0x1E} & Carrega o operando no acumulador de palavra. \\
+    \texttt{ADD} & \texttt{0x1F}/\texttt{0x20} & acumulador $+$ operando $\rightarrow$ destino. \\
+    \texttt{SUB} & \texttt{0x21}/\texttt{0x22} & acumulador $-$ operando $\rightarrow$ destino. \\
+    \texttt{MUL} & \texttt{0x23}/\texttt{0x24} & acumulador $\times$ operando $\rightarrow$ destino. \\
+    \texttt{DIV} & \texttt{0x25}/\texttt{0x26} & acumulador $\div$ operando $\rightarrow$ destino; o resultado é zero se o divisor for zero. \\
+    \texttt{MOV} & \texttt{0x27}/\texttt{0x28} & operando $\rightarrow$ destino (\textit{S32} aceita também entrada analógica). \\
+    \texttt{INC} & \texttt{0x29}/\texttt{0x2A} & operando $+ 1 \rightarrow$ destino. \\
+    \texttt{DEC} & \texttt{0x2B}/\texttt{0x2C} & operando $- 1 \rightarrow$ destino. \\
+    \texttt{NEG} & \texttt{0x2D}/\texttt{0x2E} & $-$operando $\rightarrow$ destino. \\
+    \texttt{ABS} & \texttt{0x2F}/\texttt{0x30} & $\lvert$operando$\rvert \rightarrow$ destino; em \textit{S32}, o menor inteiro é saturado no maior. \\
+    \texttt{MOD} & \texttt{0x31}/\texttt{0x32} & Resto da divisão (\texttt{fmodf} em \textit{F32}) $\rightarrow$ destino; sem escrita se o divisor for zero. \\
+    \texttt{MIN} & \texttt{0x33}/\texttt{0x34} & Mínimo entre o acumulador e o operando $\rightarrow$ destino. \\
+    \texttt{MAX} & \texttt{0x35}/\texttt{0x36} & Máximo entre o acumulador e o operando $\rightarrow$ destino. \\
+\end{longtable}
+\endgroup
+
+As instruções de comparação avaliam o acumulador de palavra contra um operando: se a relação for verdadeira, o acumulador booleano permanece inalterado; caso contrário, é zerado, o que permite compor comparações com contatos em série (Tabela~\ref{tab:ape-comparacao}).
+
+\begingroup\singlespacing
+\begin{longtable}{|l|c|p{9.4cm}|}
+    \caption{Comparação, conversão e escalonamento}
+    \label{tab:ape-comparacao}\\
+    \hline
+    Mnemônico & Opcodes & Operação \\
+    \hline
+    \endfirsthead
+    \hline
+    Mnemônico & Opcodes & Operação \\
+    \hline
+    \endhead
+    \hline
+    \endfoot
+    \texttt{EQU} & \texttt{0x37}/\texttt{0x38} & Igual. \\
+    \texttt{NEQ} & \texttt{0x39}/\texttt{0x3A} & Diferente. \\
+    \texttt{GRT} & \texttt{0x3B}/\texttt{0x3C} & Maior que. \\
+    \texttt{LES} & \texttt{0x3D}/\texttt{0x3E} & Menor que. \\
+    \texttt{GEQ} & \texttt{0x3F}/\texttt{0x40} & Maior ou igual. \\
+    \texttt{LEQ} & \texttt{0x41}/\texttt{0x42} & Menor ou igual. \\
+    \texttt{ITOF} & \texttt{0x43} & Converte inteiro em real: $(\text{f32})\,\text{operando} \rightarrow$ destino. \\
+    \texttt{FTOI} & \texttt{0x44} & Converte real em inteiro: $(\text{s32})\,\text{operando} \rightarrow$ destino. \\
+    \texttt{SCALE} & \texttt{0x45}/\texttt{0x46} & Escalonamento linear $out_{min} + (X - in_{min})\,(out_{max} - out_{min}) / (in_{max} - in_{min}) \rightarrow$ destino. $X$ pode ser registrador, constante ou entrada analógica; os quatro limites são constantes imediatas de 32 \textit{bits} (instrução de 20 \textit{bytes}); sem escrita se $in_{min} = in_{max}$. \\
+\end{longtable}
+\endgroup
+
+% ---------------------------------------------------------------------------- %
+\section{Saídas analógicas, escrita em bloco e blocos de controle}
+\label{sec:ape-isa-blocos}
+
+\begingroup\singlespacing
+\begin{longtable}{|l|c|p{9.4cm}|}
+    \caption{Saídas analógicas, escrita em bloco e blocos de controle}
+    \label{tab:ape-blocos}\\
+    \hline
+    Mnemônico & Opcode & Operação \\
+    \hline
+    \endfirsthead
+    \hline
+    Mnemônico & Opcode & Operação \\
+    \hline
+    \endhead
+    \hline
+    \endfoot
+    \texttt{ANALOG\_OUT} & \texttt{0x47} & Escreve uma tensão (registrador ou constante \textit{IEEE-754}, com conversão automática de inteiro) na saída analógica pura, limitada a 0 a 10 V. Executa apenas com o acumulador verdadeiro. \\
+    \texttt{STW} & \texttt{0x48} & Grava o valor de uma fonte (registrador ou constante) em um membro de bloco funcional (Tabela~\ref{tab:ape-stw}). Executa a cada varredura, independentemente do acumulador. \\
+    \texttt{PWM\_OUT} & \texttt{0x49} & Aplica ao canal PWM indicado o \textit{duty} (0 a 100\%, limitado) e a frequência previamente gravados por \texttt{STW}. Executa apenas com o acumulador verdadeiro. \\
+    \texttt{PID} & \texttt{0x4A} & Executa uma instância do controlador PID posicional (16 instâncias). O período de amostragem é fixo, dado pelo produto do parâmetro de amostragem pela base de tempo da instrução, e o bloco recalcula apenas quando esse período decorre (Seção~\ref{sub:blocos-funcionais}); prioridade de modos \texttt{EN} $>$ \texttt{RESET} $>$ \texttt{MANUAL} $>$ automático. \\
+    \texttt{RAMP} & \texttt{0x4B} & Executa uma instância do limitador de taxa de variação (16 instâncias): a saída persegue o valor alvo com taxa máxima de subida ou de descida por unidade de base de tempo; com \texttt{EN} desligado a saída é zero e, na borda de subida de \texttt{EN}, assume o valor inicial. \\
+\end{longtable}
+\endgroup

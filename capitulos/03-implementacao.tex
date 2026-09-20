@@ -3,301 +3,564 @@
 \chapter{Implementação}
 \label{cap:implementacao}
 
-Os conceitos que sustentam a solução proposta --- Arquitetura de Conjunto de Instruções (\textit{ISA}), Camada de Abstração de \textit{Hardware} (\textit{HAL}), ambiente de execução isolado (\textit{sandbox}) e \textit{Model-Based Design} --- foram apresentados no Capítulo~\ref{cap:fundamentacao}.
-Este capítulo não redefine esses conceitos; apresenta como cada um deles se materializa em código, em diagramas de operação e em evidência experimental, seguindo a segunda situação prevista pelo roteiro da disciplina apenas quando um conceito ainda carece de detalhamento próprio à implementação.
-Cada escolha de projeto é justificada com base em evidência extraída do próprio código-fonte, do histórico de versionamento do firmware ou de ensaios já realizados, nunca por preferência não fundamentada.
+Os conceitos que sustentam a solução --- Arquitetura de Conjunto de Instruções (\textit{ISA}), Camada de Abstração de \textit{Hardware} (\textit{HAL}), ambiente de execução isolado (\textit{sandbox}) e \textit{Model-Based Design} --- foram apresentados no Capítulo~\ref{cap:fundamentacao}.
+Este capítulo descreve como cada um deles se materializa na implementação: a arquitetura em camadas (Seção~\ref{sec:visao-geral-implementacao}), a plataforma-alvo (Seção~\ref{sec:plataforma-alvo}), a máquina virtual e o conjunto de instruções (Seção~\ref{sec:vm-isa}), o modelo de memória e o ambiente de execução isolado (Seção~\ref{sec:memoria-sandbox}), a camada de abstração de \textit{hardware} (Seção~\ref{sec:hal-implementacao}), o protocolo de comunicação (Seção~\ref{sec:protocolo}), a modelagem em \textit{Simulink}/\textit{Stateflow} (Seção~\ref{sec:stateflow-mbd}) e a estratégia de validação (Seção~\ref{sec:validacao-testes}).
+A especificação completa do conjunto de instruções e os ensaios do bloco de controle PID constam, respectivamente, do \ref{ape:isa} e do \ref{ape:pid}.
+Cada escolha de projeto é acompanhada de sua justificativa, reunidas na Tabela~\ref{tab:escolhas-projeto}.
+
+\tikzset{
+    bloco/.style={draw, rounded corners=2pt, align=center, font=\small, fill=gray!10, inner sep=4pt, minimum height=8mm},
+    estado/.style={draw, rounded corners=6pt, align=center, font=\small, fill=gray!10, inner sep=4pt, minimum height=9mm, minimum width=2.2cm},
+    seta/.style={-{Stealth[length=2.4mm]}, thick},
+    rotulo/.style={font=\footnotesize, inner sep=1.5pt, fill=white}
+}
 
 %% ------------------------------------------------------------------------- %%
 \section{Visão Geral da Arquitetura Implementada}
 \label{sec:visao-geral-implementacao}
 
-O firmware desenvolvido para este trabalho está organizado em 66 arquivos de código-fonte C (\texttt{.c}/\texttt{.h}) distribuídos em cinco módulos: \texttt{vm} (motor de execução e instruções), \texttt{memory\_map} (mapas de memória dos blocos funcionais), \texttt{comm} (protocolo de comunicação), \texttt{hal\_wrapper} (camada de abstração de \textit{hardware}) e \texttt{system} (periféricos de baixo nível).
-Dessa base, apenas quatro arquivos --- \texttt{Bsp.c}, \texttt{BspUsb\_Descriptors.h}, \texttt{Dma.c} e \texttt{Dma.h} --- concentram toda a interação direta com os periféricos do microcontrolador alvo, o STM32F767ZI (núcleo ARM Cortex-M7).
-Os demais 62 arquivos, incluindo a totalidade do motor de execução da \textit{VM} e das instruções, são escritos exclusivamente contra a interface pública declarada em \texttt{Bsp.h}, sem qualquer dependência de tipos ou registradores do fabricante do microcontrolador.
-Essa proporção --- 4 em 66 arquivos acoplados ao \textit{hardware} --- é a evidência concreta de que a \textit{HAL} descrita teoricamente na Seção~\ref{sec:fundamentos-solucao} está de fato implementada como fronteira de portabilidade, e não apenas como intenção de projeto: é precisamente essa fronteira que delimita, na Seção~\ref{sec:migracao-stm32}, o escopo dos quatro arquivos cuja implementação é específica ao STM32F767ZI.
+A solução é organizada em quatro módulos sobrepostos a uma fronteira de portabilidade, como mostra a Figura~\ref{fig:arquitetura-geral}.
+O módulo de máquina virtual reúne o motor de execução e o conjunto de instruções; o módulo de mapas de memória guarda o estado de todos os elementos endereçáveis pelo programa (entradas, saídas, memórias auxiliares, temporizadores, contadores, blocos de controle e registradores de dados); o módulo de comunicação implementa o protocolo com a ferramenta de \textit{host}; e a camada de abstração de \textit{hardware} concentra todo o acesso aos periféricos do microcontrolador.
+O programa do usuário é compilado para \textit{bytecode}, transferido ao dispositivo pelo protocolo serial e armazenado como dado somente leitura, de modo que a lógica de aplicação nunca acessa periféricos diretamente: ela é apenas percorrida pela máquina virtual, e esta, por sua vez, só interage com o \textit{hardware} através do contrato da camada de abstração.
+Essa fronteira única entre o motor de execução e o microcontrolador é o que torna o motor de execução independente da plataforma, conforme discutido na Seção~\ref{sec:fundamentos-solucao}.
 
 \begin{figure}[htb]
     \centering
-    \fbox{\begin{minipage}{0.85\textwidth}
-        \centering
-        \vspace{1.5cm}
-        \textit{Figura a inserir: diagrama de blocos com os cinco módulos do firmware (\texttt{vm}, \texttt{memory\_map}, \texttt{comm}, \texttt{hal\_wrapper}, \texttt{system}), destacando em cor diferente os 4 arquivos cuja implementação é específica ao STM32F767ZI dentro de \texttt{hal\_wrapper} e \texttt{system}.}
-        \vspace{1.5cm}
-    \end{minipage}}
+    \begin{tikzpicture}[x=1cm,y=1cm]
+        \node[bloco, minimum width=10.4cm] (app) at (0,5.0) {Lógica de aplicação: \textit{bytecode} do usuário (dado somente leitura)};
+        \node[bloco, minimum width=3.0cm, minimum height=14mm, font=\footnotesize] (vm) at (-3.8,3.0) {Máquina virtual:\\motor de execução\\e instruções};
+        \node[bloco, minimum width=3.0cm, minimum height=14mm, font=\footnotesize] (map) at (0,3.0) {Mapas de memória:\\imagens de E/S\\e blocos funcionais};
+        \node[bloco, minimum width=3.0cm, minimum height=14mm, font=\footnotesize] (com) at (3.8,3.0) {Comunicação:\\enquadramento COBS\\e CRC16};
+        \node[bloco, minimum width=10.4cm, fill=gray!25] (hal) at (0,1.1) {Camada de abstração de \textit{hardware} (contrato único com o microcontrolador)};
+        \node[bloco, minimum width=10.4cm] (mcu) at (0,-0.1) {Microcontrolador STM32F767ZI e periféricos};
+        \node[bloco, minimum width=2.4cm, minimum height=14mm] (host) at (8.6,3.0) {Ferramenta\\de \textit{host}};
+        \draw[seta] (vm.north |- app.south) -- (vm.north);
+        \draw[seta, <->] (vm) -- (map);
+        \draw[seta, <-] (com.north |- app.south) -- node[rotulo, right] {carga} (com.north);
+        \draw[seta] (vm.south) -- (vm.south |- hal.north);
+        \draw[seta] (map.south) -- (map.south |- hal.north);
+        \draw[seta] (com.south) -- (com.south |- hal.north);
+        \draw[seta] (hal) -- (mcu);
+        \draw[seta, <->] (com) -- node[rotulo, above] {serial} (host);
+    \end{tikzpicture}
     \caption{Visão geral dos módulos do firmware e fronteira de portabilidade}
     \label{fig:arquitetura-geral}
 
     {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
 \end{figure}
 
-A Figura~\ref{fig:arquitetura-geral} situa essa fronteira: a lógica de aplicação (bytecode do usuário) nunca acessa periféricos diretamente, apenas através da \textit{VM}; a \textit{VM}, por sua vez, nunca acessa registradores de \textit{hardware} diretamente, apenas através de \texttt{Bsp.h}.
-As três seções seguintes detalham, respectivamente, o motor de execução e o conjunto de instruções (Seção~\ref{sec:vm-isa}), a camada de abstração de \textit{hardware} e o protocolo de comunicação (Seção~\ref{sec:hal-comunicacao}) e o plano de implementação para o microcontrolador alvo desta pesquisa, o STM32F767ZI (Seção~\ref{sec:migracao-stm32}).
+O laço principal do firmware repete indefinidamente quatro etapas: a leitura das entradas físicas com filtro de \textit{debounce} configurável, a execução de uma varredura completa do \textit{bytecode} pela máquina virtual, a aplicação da imagem de saídas ao \textit{hardware} e o atendimento da comunicação.
+Esse ciclo de varredura (\textit{scan cycle}) reproduz, em software, o funcionamento cíclico de um CLP descrito na Seção~\ref{sec:tema} \cite{bolton:2015}.
+A Tabela~\ref{tab:recursos} reúne a capacidade dos recursos disponíveis ao programa do usuário, todos definidos por constantes de compilação e, portanto, ajustáveis sem alteração do motor de execução.
+
+\begin{table}[htb]
+    \centering
+    \caption{Recursos disponíveis ao programa do usuário}
+    \label{tab:recursos}
+    \begin{tabular}{|l|c|p{7.2cm}|}
+        \hline
+        Recurso & Quantidade & Observação \\
+        \hline
+        Entradas digitais & 10 & Com filtro de \textit{debounce} \\
+        Saídas digitais & 12 & --- \\
+        Entradas analógicas & 8 & Conversor de 12 \textit{bits} \\
+        Saídas PWM & 4 & Uma delas analógica pura (0 a 10 V) \\
+        Temporizadores & 32 & TON, TOF e TP; bases de 10 ms a 1 min \\
+        Contadores & 32 & CTU, CTD e CTUD; valor de 32 \textit{bits} com sinal \\
+        Blocos PID e RAMP & 16 + 16 & Instâncias independentes \\
+        Pilha lógica e pilha de blocos & 16 + 16 & Ramificações e blocos aninhados \\
+        \hline
+    \end{tabular}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{table}
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Plataforma-Alvo}
+\label{sec:plataforma-alvo}
+
+A implementação tem como alvo o microcontrolador STM32F767ZI, de núcleo \textit{Arm Cortex-M7} com frequência de até 216 MHz e unidade de ponto flutuante \cite{st:ds11532}.
+Quatro requisitos da solução justificam essa escolha.
+O primeiro é a aritmética de ponto flutuante: 13 das instruções aritméticas e 6 das de comparação operam sobre \textit{F32}, e a unidade de ponto flutuante do núcleo as executa em \textit{hardware}, com tempo previsível e sem bibliotecas de emulação, o que preserva o determinismo discutido na Seção~\ref{sec:problema-literatura} \cite{liu:2000}.
+O segundo é a memória: o dispositivo oferece até 2 MB de \textit{Flash} e 512 KB de SRAM, incluindo memórias acopladas ao núcleo (128 KB de dados e 16 KB de instruções) destinadas a dados e rotinas críticas de tempo real \cite{st:ds11532}, o que permite alocar os mapas de memória e o laço de varredura em regiões de acesso previsível.
+O terceiro é a cobertura de periféricos: conversores analógico-digitais de 12 \textit{bits}, temporizadores, controladores de DMA, interfaces seriais e unidade de cálculo de CRC atendem a todos os grupos de funções do contrato da camada de abstração (Seção~\ref{sec:hal-implementacao}) \cite{st:ds11532,st:rm0410}.
+O quarto é o ferramental: a placa NUCLEO-F767ZI integra o depurador/gravador ST-LINK, dispensando sonda externa e disponibilizando um canal serial para o \textit{host} \cite{st:um1974}, e a ferramenta \textit{STM32CubeMX} gera a inicialização dos periféricos a partir de uma descrição gráfica.
+Como o desempenho do núcleo é superior ao necessário para o interpretador, espera-se que o tempo de varredura seja determinado pelo tamanho do programa do usuário e não pelo custo de interpretação, hipótese verificada pelos ensaios de desempenho descritos na Seção~\ref{sec:validacao-testes}.
+
+A Figura~\ref{fig:esboco-placa} apresenta o esboço, em blocos, da conexão entre a placa e o circuito de entradas e saídas.
+A atribuição individual de pinos é definida no projeto do circuito e não altera o contrato da camada de abstração.
+
+\begin{figure}[htb]
+    \centering
+    \begin{tikzpicture}[x=1cm,y=1cm]
+        \node[bloco, minimum width=3.6cm, minimum height=34mm] (mcu) at (0,0) {\textbf{NUCLEO-F767ZI}\\STM32F767ZI\\[2pt]GPIO\quad ADC\\TIM (PWM)\\USART + DMA\\CRC};
+        \node[bloco, minimum width=3.0cm] (di) at (-5.6,1.1) {10 entradas\\digitais};
+        \node[bloco, minimum width=2.3cm] (dic) at (-5.6,-0.3) {Condicionamento\\de sinais};
+        \node[bloco, minimum width=3.0cm] (ai) at (-5.6,-1.7) {8 entradas\\analógicas};
+        \node[bloco, minimum width=3.0cm] (do) at (5.6,1.5) {12 saídas\\digitais};
+        \node[bloco, minimum width=3.0cm] (pwm) at (5.6,0.1) {3 saídas PWM};
+        \node[bloco, minimum width=3.0cm] (ao) at (5.6,-1.4) {1 saída analógica\\0 a 10 V};
+        \node[bloco, minimum width=3.6cm] (pc) at (0,-3.4) {Ferramenta de \textit{host}\\(PC)};
+        \draw[seta] (di.east) -- ++(0.5,0) |- ([yshift=6mm]mcu.west);
+        \draw[seta] (ai.east) -- ++(0.5,0) |- ([yshift=-8mm]mcu.west);
+        \draw[seta] ([yshift=8mm]mcu.east) -- ++(0.5,0) |- (do.west);
+        \draw[seta] (mcu.east) -- ++(0.5,0) |- (pwm.west);
+        \draw[seta] ([yshift=-8mm]mcu.east) -- ++(0.5,0) |- (ao.west);
+        \draw[seta, <->] (mcu.south) -- node[rotulo, right] {porta serial virtual (ST-LINK)} (pc.north);
+    \end{tikzpicture}
+    \caption{Esboço em blocos da conexão entre a placa-alvo e o circuito de entradas e saídas}
+    \label{fig:esboco-placa}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026), com base em \cite{st:um1974}.\par}
+\end{figure}
 
 
 %% ------------------------------------------------------------------------- %%
 \section{Máquina Virtual e Conjunto de Instruções}
 \label{sec:vm-isa}
 
-O motor de execução da \textit{VM} (arquivo \texttt{Vm.c}) implementa o ciclo \textit{fetch-decode-execute} apresentado teoricamente na Seção~\ref{sec:fundamentos-solucao}: a cada iteração, uma instrução de 4 \textit{bytes} é lida da memória de programa (\textit{fetch}), seu campo de opcode é isolado (\textit{decode}) e utilizado como índice de uma tabela de despacho de ponteiros de função (\texttt{VmDispatchTable}), que direciona a execução para a rotina correspondente (\textit{execute}).
-A escolha de uma tabela de despacho indexada por opcode, em vez de uma cadeia de \texttt{switch}/\texttt{if} sequenciais, é uma decisão de implementação com justificativa direta em determinismo temporal: o tempo de despacho é constante (acesso a vetor, $O(1)$) e independente de qual instrução está sendo executada, característica desejável para preservar a previsibilidade do ciclo de varredura (\textit{scan cycle}) discutida na Seção~\ref{sec:tema} \cite{patterson:2020}.
+\subsection{Ciclo de execução}
+\label{sub:ciclo-execucao}
 
-O conjunto de instruções, definido em \texttt{VmInstructions.h}, ocupa hoje os opcodes \texttt{0x00} a \texttt{0x4A} (75 instruções) e está organizado em nove módulos de execução, cada um implementado em um arquivo \texttt{.c} dedicado dentro de \texttt{vm/instructions/}:
-
-\begin{itemize}
-    \item \texttt{VmInstr\_Bit} --- lógica de contatos e bobinas (\texttt{LD}, \texttt{LDN}, \texttt{AND}, \texttt{OR}, \texttt{OUT}, \texttt{SET}, \texttt{RESET}, pilha de blocos lógicos \texttt{MPS}/\texttt{MRD}/\texttt{MPP});
-    \item \texttt{VmInstr\_Compare} --- comparações entre operandos inteiros (\texttt{S32}) e de ponto flutuante (\texttt{F32}): \texttt{EQU}, \texttt{NEQ}, \texttt{GRT}, \texttt{LES}, \texttt{GEQ};
-    \item \texttt{VmInstr\_Math} --- aritmética \texttt{S32}/\texttt{F32}: soma, subtração, multiplicação, divisão, módulo, mínimo, máximo;
-    \item \texttt{VmInstr\_Convert} --- conversão e movimentação de dados entre tipos e registradores;
-    \item \texttt{VmInstr\_Flow} --- controle de fluxo do bytecode;
-    \item \texttt{VmInstr\_Analog} --- leitura e escrita de canais analógicos;
-    \item \texttt{VmInstr\_TimerCounter} --- blocos funcionais de temporizador e contador;
-    \item \texttt{VmInstr\_Control} --- bloco funcional \texttt{PID} (opcode \texttt{0x4A});
-    \item \texttt{VmInstr\_Comm} --- instruções de interação com o protocolo de comunicação descrito na Seção~\ref{sec:hal-comunicacao}.
-\end{itemize}
-
-A largura fixa de 4 \textit{bytes} por instrução --- já justificada teoricamente na Seção~\ref{sec:fundamentos-solucao} como simplificadora do estágio de \textit{fetch-decode} --- tem uma consequência direta de implementação: o ponteiro de instrução (\textit{program counter}) avança sempre por incrementos constantes, o que elimina a necessidade de lógica de decodificação de comprimento variável presente em \textit{ISAs} de largura variável (como x86), reduzindo tanto o número de ciclos de processador gastos na decodificação quanto a superfície de código sujeita a erro.
-
-Blocos funcionais com estado persistente entre ciclos de varredura --- temporizador, contador e PID --- não armazenam esse estado no próprio bytecode (que é, por definição, somente leitura durante a execução); cada um possui um mapa de memória dedicado (\texttt{TimerMap}, \texttt{CounterMap}, \texttt{PidMap}, além de \texttt{IoMap}, \texttt{AnalogMap}, \texttt{PwmMap}, \texttt{DataRegMap} e \texttt{LastStateMap} para os demais tipos de dado do sistema).
-Essa segregação é a mesma decisão arquitetural, em nível de implementação, que sustenta o ambiente de execução isolado (\textit{sandbox}) descrito na Seção~\ref{sec:fundamentos-solucao}: o bytecode do usuário nunca aponta diretamente para essas estruturas em memória, apenas as referencia por índice, validado em tempo de execução antes do acesso --- um erro de índice na lógica do usuário resulta em um erro de \textit{trap} controlado, não em corrupção de memória arbitrária.
+O motor de execução implementa o ciclo \textit{fetch-decode-execute} apresentado na Seção~\ref{sec:fundamentos-solucao}.
+A cada varredura, o contador de instruções é posicionado no início do \textit{bytecode}, a pilha lógica e o acumulador são zerados e a imagem de saídas retentivas é reaplicada; em seguida, cada instrução é lida da memória de programa (\textit{fetch}), tem o campo de opcode isolado (\textit{decode}) e é despachada para a rotina correspondente (\textit{execute}) até que a instrução de fim de varredura (\textit{EOS}) seja alcançada, como ilustra a Figura~\ref{fig:fetch-decode-execute}.
+Um opcode fora do repertório válido interrompe a varredura e leva a máquina ao estado de erro (\textit{trap}), no qual a execução permanece bloqueada, com um pino de sinalização acionado, até que um novo \textit{bytecode} seja transferido.
 
 \begin{figure}[htb]
     \centering
-    \fbox{\begin{minipage}{0.85\textwidth}
-        \centering
-        \vspace{1.5cm}
-        \textit{Figura a inserir: diagrama de estados do ciclo fetch-decode-execute (três estados: Fetch $\rightarrow$ Decode $\rightarrow$ Execute $\rightarrow$ volta a Fetch), com uma ramificação para o estado de Erro de Trap quando o opcode ou o índice de operando é inválido.}
-        \vspace{1.5cm}
-    \end{minipage}}
+    \begin{tikzpicture}[x=1cm,y=1cm]
+        \node[estado, minimum width=2.0cm] (ini) at (-6.6,0) {Início da\\varredura};
+        \node[estado, minimum width=2.0cm] (fetch) at (-3.3,0) {\textit{Fetch}};
+        \node[estado, minimum width=2.0cm] (decode) at (0,0) {\textit{Decode}};
+        \node[estado, minimum width=2.0cm] (exec) at (3.3,0) {\textit{Execute}};
+        \node[estado, minimum width=2.0cm] (fim) at (6.6,0) {Fim da\\varredura};
+        \node[estado, minimum width=2.0cm, fill=gray!30] (trap) at (0,-2.4) {Erro (\textit{trap})};
+        \draw[seta] (ini) -- (fetch);
+        \draw[seta] (fetch) -- (decode);
+        \draw[seta] (decode) -- node[rotulo, above=1pt, fill=none] {válido} (exec);
+        \draw[seta] (exec) -- node[rotulo, above=1pt, fill=none] {\textit{EOS}} (fim);
+        \draw[seta] (exec.north) -- ++(0,0.9) -| node[rotulo, pos=0.25, above] {demais instruções} (fetch.north);
+        \draw[seta] (decode.south) -- node[rotulo, right] {inválido} (trap.north);
+    \end{tikzpicture}
     \caption{Ciclo \textit{fetch-decode-execute} da máquina virtual}
     \label{fig:fetch-decode-execute}
 
     {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
 \end{figure}
 
+O despacho é feito por uma tabela de 128 posições, uma para cada valor possível do opcode de 7 \textit{bits}, cada uma apontando para a rotina da instrução.
+Essa escolha, em vez de uma cadeia de comparações sequenciais, torna o tempo de despacho constante --- acesso a um vetor --- e independente de qual instrução é executada, característica desejável para a previsibilidade do ciclo de varredura \cite{liu:2000,patterson:2020}.
+Antes da primeira varredura de cada programa carregado, o \textit{bytecode} é percorrido duas vezes: uma validação rejeita opcodes inválidos, e um pré-processamento extrai, uma única vez, as bases de tempo de temporizadores, blocos PID e blocos RAMP, retirando esse trabalho estático do laço de varredura.
 
-%% ------------------------------------------------------------------------- %%
-\section{Camada de Abstração de Hardware e Protocolo de Comunicação}
-\label{sec:hal-comunicacao}
+\subsection{Formato e repertório de instruções}
+\label{sub:formato-repertorio}
 
-A interface pública da \textit{HAL} (\texttt{Bsp.h}) expõe exclusivamente funções e tipos primitivos (\texttt{u8}, \texttt{u16}, \texttt{u32}, \texttt{bool}) definidos em um cabeçalho de tipos comum do firmware, organizadas por periférico: inicialização geral (\texttt{Bsp\_Init}), entradas e saídas digitais (\texttt{Bsp\_GetRawInputs}, \texttt{Bsp\_SetRawOutputs}), comunicação serial (\texttt{Bsp\_SerialInit} e correlatas), temporização (\texttt{Bsp\_Timer\_Init}, \texttt{Bsp\_GetSystemTimeMs}), DMA (\texttt{Bsp\_DmaOpen}, \texttt{Bsp\_DmaCreateTx}/\texttt{Rx}) e USB (\texttt{Bsp\_UsbInit}, \texttt{Bsp\_UsbRead}/\texttt{Write}).
-Nenhum tipo específico do \textit{SDK} do fabricante do microcontrolador (por exemplo, as estruturas de configuração da \textit{STM32Cube HAL}) aparece nessa interface --- eles ficam confinados à implementação (\texttt{Bsp.c}), nunca ao contrato.
-Essa separação entre contrato e implementação é o motivo pelo qual a implementação específica ao STM32F767ZI, descrita na Seção~\ref{sec:migracao-stm32}, se restringe a quatro arquivos: o restante do firmware é escrito inteiramente contra o contrato de \texttt{Bsp.h}, sem nunca referenciar o fabricante do microcontrolador.
-
-O protocolo de comunicação entre o CLP embarcado e a ferramenta de \textit{host} (transferência de bytecode e depuração em tempo real) utiliza enquadramento por \textit{Consistent Overhead Byte Stuffing} (\textit{COBS}), verificação de integridade por CRC16 e um conjunto de comandos de controle (\texttt{ACK}, \texttt{NACK}, \texttt{SEND\_VM\_ERROR}, \texttt{START\_TRANSFER}, \texttt{STOP\_TRANSFER}, \texttt{DATA\_PACKET}).
-Uma versão mais completa desse protocolo, com uma camada adicional de autenticação por senha e desafio-resposta que impede que ferramentas não autorizadas gravem bytecode no dispositivo, foi concebida e implementada em coautoria com um colega; essa camada de autenticação, em particular, não é objeto de contribuição individual deste trabalho.
-
-Para este trabalho, adota-se deliberadamente uma versão simplificada e abstraída do protocolo: preserva-se o enquadramento por COBS e a verificação de integridade por CRC --- mecanismos essenciais para que qualquer transferência de bytecode sobre um canal serial ruidoso seja confiável --- e omite-se a camada de autenticação por desafio-resposta.
-Essa simplificação é uma escolha de escopo, não uma limitação técnica: o objetivo desta implementação é demonstrar a portabilidade do motor de execução e da \textit{HAL}, e não reproduzir um mecanismo de proteção contra clonagem cuja autoria é compartilhada com um colega.
+Toda instrução ocupa uma palavra de 32 bits, de modo que o avanço do contador de instruções é constante e a decodificação dispensa a lógica de comprimento variável característica de \textit{ISAs} como a x86, simplificando o estágio de busca e decodificação \cite{patterson:2020}.
+A Figura~\ref{fig:formato-instrucao} mostra os dois formatos de palavra: o genérico, usado por instruções que endereçam um operando (tipo, índice e sub-tipo), e o dos blocos PID e RAMP, que identificam a instância e a base de tempo.
+O \textit{bit} mais significativo do byte de opcode é reservado à depuração e mascarado antes do despacho.
+Operandos imediatos de 32 \textit{bits} ocupam uma palavra adicional, imediatamente após a instrução.
 
 \begin{figure}[htb]
     \centering
-    \fbox{\begin{minipage}{0.85\textwidth}
-        \centering
-        \vspace{1.5cm}
-        \textit{Figura a inserir: diagrama de sequência do protocolo simplificado --- host envia START\_TRANSFER, CLP responde ACK/NACK, host envia DATA\_PACKET(s) codificados em COBS com CRC, CLP responde ACK por pacote, host envia STOP\_TRANSFER.}
-        \vspace{1.5cm}
-    \end{minipage}}
-    \caption{Sequência simplificada do protocolo de transferência de bytecode}
-    \label{fig:protocolo-sequencia}
+    \begin{tikzpicture}[x=1cm,y=1cm, font=\footnotesize]
+        \def\bw{0.44}
+        \foreach \b/\x in {0/0, 1/3.52, 2/7.04, 3/10.56} {
+            \node[font=\footnotesize] at ({\x+1.76},1.95) {byte \b};
+        }
+        \node[anchor=east] at (-0.2,1.0) {Genérico};
+        \tikzset{campo/.style={draw, minimum height=8mm, font=\scriptsize, inner sep=0pt, align=center, anchor=south west}}
+        \node[campo, minimum width=0.44cm] at (0,0.6) {D};
+        \node[campo, minimum width=3.08cm] at (0.44,0.6) {opcode};
+        \node[campo, minimum width=1.76cm] at (3.52,0.6) {tipo};
+        \node[campo, minimum width=1.76cm] at (5.28,0.6) {índice alto};
+        \node[campo, minimum width=1.76cm] at (7.04,0.6) {índice baixo};
+        \node[campo, minimum width=1.76cm] at (8.80,0.6) {sub-tipo};
+        \node[campo, minimum width=3.52cm] at (10.56,0.6) {reservado};
+        \node[anchor=east] at (-0.2,-0.4) {PID e RAMP};
+        \node[campo, minimum width=0.44cm] at (0,-0.8) {D};
+        \node[campo, minimum width=3.08cm] at (0.44,-0.8) {opcode};
+        \node[campo, minimum width=1.76cm] at (3.52,-0.8) {instância};
+        \node[campo, minimum width=0.88cm] at (5.28,-0.8) {TB};
+        \node[campo, minimum width=0.88cm] at (6.16,-0.8) {res.};
+        \node[campo, minimum width=3.52cm] at (7.04,-0.8) {reservado};
+        \node[campo, minimum width=3.52cm] at (10.56,-0.8) {reservado};
+        \node[anchor=west, font=\scriptsize, align=left] at (0,-1.5) {D: \textit{bit} de depuração (1); opcode (7); tipo, índices, sub-tipo e instância (4 \textit{bits} cada);\\ TB: base de tempo (2); res.: reservado (2); reservado (8).};
+    \end{tikzpicture}
+    \caption{Formato da palavra de instrução de 32 \textit{bits}}
+    \label{fig:formato-instrucao}
 
-    {\footnotesize Fonte: Elaborado pelo autor (2026), adaptado do protocolo ICP original.\par}
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
 \end{figure}
 
-
-%% ------------------------------------------------------------------------- %%
-\section{Plano de Implementação para o STM32F767ZI}
-\label{sec:migracao-stm32}
-
-Conforme delimitado na Seção~\ref{sec:visao-geral-implementacao}, a implementação específica ao microcontrolador STM32F767ZI (núcleo ARM Cortex-M7) está circunscrita a quatro arquivos --- \texttt{Bsp.c}, \texttt{BspUsb\_Descriptors.h}, \texttt{Dma.c} e \texttt{Dma.h} --- e à implementação do protocolo de comunicação simplificado apresentado na Seção~\ref{sec:hal-comunicacao} sobre os periféricos seriais do microcontrolador.
-O Quadro~\ref{qua:mapeamento-perifericos} apresenta os periféricos do STM32F767ZI empregados por cada função da \textit{HAL}.
+O repertório contém 76 instruções, com opcodes de \texttt{0x00} a \texttt{0x4B}, além da instrução de fim de varredura (\texttt{0x7F}), organizadas nos grupos da Tabela~\ref{tab:grupos-instrucoes}.
+A lógica de contatos e bobinas segue o modelo de \textit{Instruction List} da norma IEC 61131-3 \cite{iec:2025}, com pilha lógica para ramificações e pilha de blocos para associações série e paralelo de trechos de \textit{rung}.
+A especificação de cada opcode, dos tipos de operando e dos sub-tipos de cada bloco funcional consta do \ref{ape:isa}.
 
 \begin{table}[htb]
     \centering
-    \caption{Periféricos do STM32F767ZI utilizados por função da HAL}
-    \label{qua:mapeamento-perifericos}
-    \begin{tabular}{|l|l|}
+    \caption{Grupos de instruções da máquina virtual}
+    \label{tab:grupos-instrucoes}
+    \begin{tabular}{|p{6.1cm}|c|c|}
         \hline
-        Função no \texttt{Bsp.h} & Periférico/\textit{HAL} do STM32F767ZI \\
+        Grupo & Instruções & Opcodes \\
         \hline
-        Entradas/saídas digitais & \textit{GPIO HAL} (\texttt{HAL\_GPIO\_*}) \\
-        Comunicação serial & USART + \textit{HAL} (\texttt{HAL\_UART\_*}), com DMA \\
-        Entradas analógicas & ADC de 12 \textit{bits} + \textit{HAL} (\texttt{HAL\_ADC\_*}) \\
-        Transferência de dados & DMA + \textit{HAL} (\texttt{HAL\_DMA\_*}) \\
-        Temporização (\textit{scan timer}) & \textit{Timer} de propósito geral (\texttt{HAL\_TIM\_*}) \\
-        Comunicação USB & USB \textit{Device} (\texttt{USB\_OTG\_FS}) \\
+        Controle de fluxo e pilhas & 7 & \texttt{0x00}, \texttt{0x01}, \texttt{0x12}--\texttt{0x16} \\
+        Contatos e lógica booleana (incluindo bordas) & 15 & \texttt{0x03}--\texttt{0x11} \\
+        Armazenamento e bobinas (\texttt{ST}, \texttt{OUT}, \texttt{SET}, \texttt{RESET}, \texttt{TOGGLE}) & 5 & \texttt{0x02}, \texttt{0x17}--\texttt{0x1A} \\
+        Temporizadores e contadores & 2 & \texttt{0x1B}--\texttt{0x1C} \\
+        Aritmética e movimentação (\textit{S32}/\textit{F32}) & 26 & \texttt{0x1D}--\texttt{0x36} \\
+        Comparação (\textit{S32}/\textit{F32}) & 12 & \texttt{0x37}--\texttt{0x42} \\
+        Conversão e escalonamento & 4 & \texttt{0x43}--\texttt{0x46} \\
+        Saídas analógica e PWM, escrita em bloco e blocos PID e RAMP & 5 & \texttt{0x47}--\texttt{0x4B} \\
         \hline
-    \end{tabular}
-
-    {\footnotesize Fonte: Elaborado pelo autor (2026), com base em \texttt{Bsp.h} e nos periféricos do STM32F767ZI.\par}
-\end{table}
-
-A adoção da \textit{HAL} fornecida pelo fabricante (\textit{STM32Cube HAL}), em vez da camada de acesso a registrador de baixo nível (\textit{Low-Layer}, \textit{LL}), é uma escolha de implementação justificada por dois fatores: primeiro, o código gerado pela ferramenta \textit{STM32CubeMX} a partir da configuração gráfica de periféricos reduz o risco de erro de inicialização de registrador, cuja depuração consome tempo desproporcional ao benefício de desempenho da \textit{LL} nesta aplicação; segundo, como a própria \texttt{Bsp.c} já constitui uma camada de abstração adicional sobre o fabricante (Seção~\ref{sec:hal-comunicacao}), o eventual sobrecusto de abstração da \textit{STM32Cube HAL} é absorvido nessa fronteira e não se propaga ao motor de execução da \textit{VM}.
-Essa opção segue, ainda, o precedente de Sadolewski e Trybus \cite{sadolewski:2022}, que validaram um ambiente de controle multiplataforma em microcontrolador STM32 de núcleo ARM utilizando a cadeia de ferramentas oficial do fabricante.
-
-A execução desta implementação está organizada nas semanas descritas no Quadro~\ref{qua:cronograma-migracao}, de modo que cada etapa produza um artefato verificável antes de avançar para a seguinte.
-
-\begin{table}[htb]
-    \centering
-    \caption{Cronograma de implementação e de modelagem MBD}
-    \label{qua:cronograma-migracao}
-    \begin{tabular}{|l|p{9.5cm}|}
-        \hline
-        Semana & Entrega prevista \\
-        \hline
-        1 (15--21/09) & Projeto do protocolo de comunicação simplificado (Seção~\ref{sec:hal-comunicacao}) e esqueleto do projeto \textit{STM32CubeIDE}/\textit{CubeMX} (clocks, \textit{pinout}, periféricos mínimos). \\
-        2 (22--28/09) & Implementação da \textit{HAL}: os quatro arquivos que concentram acesso a periféricos e o protocolo de comunicação sobre a UART/DMA; primeira compilação sem erros no STM32F767ZI. \\
-        3 (29/09--05/10) & \textit{Bring-up} na placa real: validação isolada de GPIO, UART, ADC e temporizador; execução do ciclo \textit{fetch-decode-execute} completo no novo núcleo; repetição, no novo \textit{hardware}, de um subconjunto dos testes de bancada descritos na Seção~\ref{sub:testes-unidade}. \\
-        4 (06--12/10) & Modelagem em \textit{Simulink}/\textit{Stateflow} da máquina de estados do bloco PID (Seção~\ref{sec:stateflow-mbd}) e validação cruzada preliminar entre o modelo e a \textit{VM} em execução. \\
-        5 (13--15/10) & Consolidação de evidências e testes de sistema pendentes no novo \textit{hardware}. \\
+        Total & 76 & \texttt{0x00}--\texttt{0x4B} \\
         \hline
     \end{tabular}
 
     {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
 \end{table}
 
-Na data de fechamento deste capítulo, esta implementação encontra-se na etapa de projeto (Semana 1); os resultados de \textit{bring-up} e de validação no STM32F767ZI, quando concluídos, serão incorporados como atualização deste capítulo antes da defesa deste trabalho.
+\subsection{Blocos funcionais com estado}
+\label{sub:blocos-funcionais}
+
+Blocos funcionais mantêm estado entre varreduras e, por isso, não o armazenam no \textit{bytecode}, que é somente leitura, mas em mapas de memória dedicados (Seção~\ref{sec:memoria-sandbox}).
+Os temporizadores implementam os três tipos da IEC 61131-3 --- \textit{TON} (retardo na energização), \textit{TOF} (retardo na desenergização) e \textit{TP} (pulso) --- com tempo programado constante ou lido de registrador e quatro bases de tempo (10 ms, 100 ms, 1 s e 1 min).
+A contagem parte da borda de subida de \texttt{EN} no \textit{TON} e no \textit{TP} (este não retentável durante o pulso) e da borda de descida no \textit{TOF}, e é medida contra a base de tempo do sistema, e não pela contagem de varreduras, para que o intervalo não dependa do tamanho do programa.
+Alterações do tempo programado durante a contagem são absorvidas sem reiniciá-la.
+Os contadores implementam \textit{CTU}, \textit{CTD} e \textit{CTUD}, com entradas de contagem sensíveis a borda, entradas de \textit{reset} e de carga (\textit{load}) e valor programado constante ou de registrador.
+O bloco \textit{RAMP} é um limitador de taxa de variação: sua saída persegue o valor alvo com taxas máximas independentes de subida e de descida, por unidade de tempo configurável; com \texttt{EN} desligado a saída é zero, e na borda de subida de \texttt{EN} ela assume imediatamente o valor inicial, sem rampa.
+
+O bloco PID implementa o algoritmo posicional na forma paralela, com quatro decisões de projeto justificadas pelo comportamento em malha fechada \cite{astrom:2006}.
+Primeiro, o intervalo de amostragem é fixo e configurável, e não medido: o bloco só recalcula quando esse período decorre, o que impede que a variação do tempo de varredura entre nos termos integral e derivativo.
+Segundo, o termo derivativo é calculado sobre a variável de processo e não sobre o erro, evitando o pico de saída (\textit{derivative kick}) quando o \textit{setpoint} muda.
+Terceiro, o anti-\textit{windup} é feito por integração condicional (\textit{clamping}): a integração é suspensa quando a saída já está saturada e o erro a empurra mais fundo na mesma direção, e retomada assim que o erro inverte de sinal.
+Quarto, no modo manual o integrador acompanha a saída (\textit{back-tracking}), de modo que a passagem de manual para automático ocorre sem salto (\textit{bumpless transfer}).
+A banda morta é aplicada ao erro antes dos termos proporcional e integral, e a saída é sempre limitada ao intervalo configurado, inclusive no modo manual.
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Modelo de Memória e Ambiente de Execução Isolado}
+\label{sec:memoria-sandbox}
+
+Toda a memória do sistema é alocada estaticamente em tempo de compilação: não há alocação dinâmica nem coleta de lixo, o que elimina fragmentação e a variação de tempo que esses mecanismos introduziriam \cite{liu:2000}.
+Cada tipo de elemento endereçável possui um mapa dedicado --- imagens de entradas, saídas e memórias auxiliares (\textit{bits}), registradores de dados de 32 \textit{bits}, temporizadores, contadores, instâncias PID e RAMP, e entradas e saídas analógicas ---, e o programa do usuário os referencia apenas por tipo e índice, nunca por ponteiro, como mostra a Figura~\ref{fig:mapa-memoria}.
+
+\begin{figure}[htb]
+    \centering
+    \begin{tikzpicture}[x=1cm,y=1cm]
+        \node[bloco, minimum width=3.2cm, minimum height=26mm] (vm) at (-4.6,0) {Máquina\\virtual};
+        \node[bloco, minimum width=6.6cm, fill=white] (bc) at (1.6,2.6) {\textit{Bytecode} (somente leitura)};
+        \node[bloco, minimum width=6.6cm] (img) at (1.6,1.5) {Imagens de entradas, saídas e memórias (\textit{bits})};
+        \node[bloco, minimum width=6.6cm] (dr) at (1.6,0.4) {Registradores de dados (32 \textit{bits})};
+        \node[bloco, minimum width=6.6cm] (fb) at (1.6,-0.7) {Temporizadores, contadores, PID e RAMP};
+        \node[bloco, minimum width=6.6cm] (an) at (1.6,-1.8) {Entradas analógicas e saídas PWM};
+        \draw[seta] (vm.east) -- ++(0.6,0) |- (bc.west);
+        \draw[seta, <->] (vm.east) -- ++(0.6,0) |- (img.west);
+        \draw[seta, <->] (vm.east) -- ++(0.6,0) |- (dr.west);
+        \draw[seta, <->] (vm.east) -- ++(0.6,0) |- (fb.west);
+        \draw[seta, <->] (vm.east) -- ++(0.6,0) |- (an.west);
+        \node[rotulo, align=center] at (-3.2,-2.6) {acesso por tipo e índice,\\validado a cada operação};
+    \end{tikzpicture}
+    \caption{Regiões de memória e forma de acesso pela máquina virtual}
+    \label{fig:mapa-memoria}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{figure}
+
+Essa segregação materializa o ambiente de execução isolado descrito na Seção~\ref{sec:fundamentos-solucao}.
+O \textit{bytecode} é rejeitado se contiver opcode inválido, e as funções de acesso de cada mapa validam o índice a cada operação, e uma leitura fora da faixa retorna um valor neutro (falso ou zero) sem acessar memória, de modo que um erro de endereçamento na lógica do usuário não alcança memória fora das regiões alocadas nem o estado interno da máquina.
+Diferentemente da compilação para código nativo, na qual um erro de lógica executa diretamente no processador, aqui o pior efeito possível é local à instrução defeituosa ou, no caso de opcode inválido, a parada controlada da execução com sinalização externa.
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Camada de Abstração de Hardware}
+\label{sec:hal-implementacao}
+
+O contrato da camada de abstração expõe somente funções e tipos primitivos, organizados por grupo de periférico, e nenhum tipo do fabricante do microcontrolador aparece nessa interface: eles ficam confinados à implementação.
+É essa separação entre contrato e implementação que faz da camada o único ponto do firmware dependente do microcontrolador, e que reduz a adaptação a outra plataforma à reimplementação dela.
+A Tabela~\ref{tab:hal} associa cada grupo de funções ao periférico do STM32F767ZI que o implementa.
+
+\begin{table}[htb]
+    \centering
+    \caption{Grupos de funções da camada de abstração e periféricos do STM32F767ZI}
+    \label{tab:hal}
+    \begin{tabular}{|p{5.6cm}|p{8.6cm}|}
+        \hline
+        Grupo de funções & Periférico e observações \\
+        \hline
+        Entradas e saídas digitais; sinalização de erro & \textit{GPIO} \\
+        Comunicação serial com o \textit{host} & \textit{USART} com DMA em transmissão e recepção, sobre a porta serial virtual do ST-LINK \\
+        Base de tempo (ms e $\mu$s) e temporizador de varredura & \textit{Timer} de propósito geral \\
+        Entradas analógicas (8 canais) & ADC de 12 \textit{bits} \\
+        Saídas PWM (4 canais) e saída analógica & \textit{Timer} em modo PWM; filtro externo para a saída de 0 a 10 V \\
+        Verificação de integridade (CRC16) & Unidade de CRC do microcontrolador ou rotina em \textit{software}, selecionada na inicialização \\
+        \hline
+    \end{tabular}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026), com base em \cite{st:ds11532,st:rm0410,st:um1974}.\par}
+\end{table}
+
+A implementação utiliza a biblioteca de \textit{HAL} fornecida pelo fabricante (\textit{STM32Cube HAL}), em vez do acesso direto a registradores (\textit{Low-Layer}), por dois motivos.
+O código de inicialização gerado pela ferramenta \textit{STM32CubeMX} reduz o risco de erro de configuração de registradores, cuja depuração consome tempo desproporcional ao ganho de desempenho da alternativa de baixo nível nesta aplicação; e, como a camada de abstração do projeto já é uma fronteira própria, o eventual sobrecusto da biblioteca do fabricante fica contido nela e não se propaga ao motor de execução.
+Interfaces de armazenamento externo e de USB não fazem parte do escopo desta monografia.
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Protocolo de Comunicação}
+\label{sec:protocolo}
+
+O protocolo transfere o \textit{bytecode} do \textit{host} ao dispositivo e permite a depuração em tempo real (observação e forçamento de variáveis, pausa e retomada da execução).
+Cada mensagem é um quadro composto pelo comando, um identificador de \textit{hardware}, os dados e uma verificação de integridade CRC16 de polinômio 0x8005 (forma refletida 0xA001), e é enviada com enquadramento \textit{Consistent Overhead Byte Stuffing} (\textit{COBS}).
+O \textit{COBS} elimina o byte zero do conteúdo do quadro com sobrecarga limitada e conhecida, o que permite usar esse byte como delimitador sem ambiguidade \cite{cheshire:1999}; o CRC16 detecta corrupção em canais seriais ruidosos.
+O identificador de dispositivo presente em cada quadro permite ao \textit{firmware} rejeitar comandos endereçados a um dispositivo diferente do esperado.
+Os pacotes de dados têm no máximo 512 \textit{bytes}, dos quais até 256 de carga útil.
+
+Os comandos organizam-se em três grupos: controle (confirmação positiva, confirmação negativa com código de erro e notificação de erro da máquina virtual), transferência (início, pacote de dados e fim) e depuração (início e fim, pausa e retomada, publicação e remoção de variáveis observadas, forçamento de valores e escrita direta em memória e registradores).
+O dispositivo mantém uma máquina de estados com três modos --- espera, transferência e depuração ---, e em cada um deles rejeita, com um código de \textit{NACK} específico, qualquer comando inválido, de tamanho inconsistente, com CRC incorreto ou destinado a outro identificador de \textit{hardware}.
+A Figura~\ref{fig:protocolo-sequencia} apresenta a sequência de uma transferência de \textit{bytecode}.
+A autenticação do \textit{host} não faz parte do escopo desta monografia; a rejeição correta de quadros malformados é, portanto, a barreira de robustez do canal contra ruído e contra uso incorreto da ferramenta.
+
+\begin{figure}[htb]
+    \centering
+    \begin{tikzpicture}[x=1cm,y=1cm]
+        \node[bloco, minimum width=3cm] (h) at (-4,0) {Ferramenta de \textit{host}};
+        \node[bloco, minimum width=3cm] (d) at (4,0) {Dispositivo};
+        \draw[thick] (h.south) -- (-4,-6.4);
+        \draw[thick] (d.south) -- (4,-6.4);
+        \draw[seta] (-4,-1.0) -- node[rotulo, above] {\texttt{START\_TRANSFER}} (4,-1.0);
+        \draw[seta, dashed] (4,-1.7) -- node[rotulo, above] {\texttt{ACK} (CRC e identificador válidos) ou \texttt{NACK}} (-4,-1.7);
+        \draw[seta] (-4,-2.7) -- node[rotulo, above] {\texttt{DATA\_PACKET} $n$ (COBS + CRC16)} (4,-2.7);
+        \draw[seta, dashed] (4,-3.4) -- node[rotulo, above] {\texttt{ACK} do pacote $n$ ou \texttt{NACK}} (-4,-3.4);
+        \node[rotulo, fill=none] at (0,-4.05) {$\vdots$ repetido para cada pacote};
+        \draw[seta] (-4,-4.8) -- node[rotulo, above] {\texttt{STOP\_TRANSFER}} (4,-4.8);
+        \draw[seta, dashed] (4,-5.5) -- node[rotulo, above] {\texttt{ACK} ou \texttt{NACK}} (-4,-5.5);
+    \end{tikzpicture}
+    \caption{Sequência de uma transferência de \textit{bytecode}}
+    \label{fig:protocolo-sequencia}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{figure}
 
 
 %% ------------------------------------------------------------------------- %%
 \section{Modelagem em Simulink/Stateflow segundo Model-Based Design}
 \label{sec:stateflow-mbd}
 
-A metodologia de \textit{Model-Based Design}, fundamentada na Seção~\ref{sec:fundamentos-solucao}, prescreve um modelo executável do comportamento do sistema como referência para validar a implementação final \cite{nicolescu:2009}.
-Neste trabalho, o comportamento escolhido como primeiro artefato de modelagem é a máquina de prioridade de modos do bloco funcional PID (opcode \texttt{0x4A}, Seção~\ref{sec:vm-isa}), por já estar inteiramente especificada em termos de estados e transições a partir da implementação existente: quatro estados --- \textsc{Desabilitado} (\texttt{EN=FALSE}), \textsc{Reset}, \textsc{Manual} e \textsc{Automático} --- com prioridade estrita entre eles, de modo que \textsc{Desabilitado} sobrepõe-se a \textsc{Reset}, que sobrepõe-se a \textsc{Manual}, que sobrepõe-se a \textsc{Automático}.
-O Quadro~\ref{qua:estados-pid} resume as condições de transição e a saída associada a cada estado, tal como implementadas em \texttt{VmInstr\_Control.c}.
+A metodologia de \textit{Model-Based Design}, fundamentada na Seção~\ref{sec:fundamentos-solucao}, prescreve um modelo executável do comportamento esperado como referência para validar a implementação \cite{nicolescu:2009}.
+Neste trabalho, os modelos de referência cumprem três papéis: servem de oráculo para os ensaios de lógica de contatos, temporização e contagem (Seção~\ref{sec:validacao-testes}), à maneira do modelo semântico executável empregado por Sadolewski e Trybus \cite{sadolewski:2024}; especificam a máquina de modos do bloco PID; e, em conjunto com modelos de planta, fecham a malha dos ensaios \textit{Hardware-in-the-Loop} do \ref{ape:pid}.
+O procedimento de validação cruzada, análogo ao de Duggan et al. \cite{duggan:2022}, aplica o mesmo vetor de estímulos ao modelo simulado e à máquina virtual em execução, registra a imagem de saídas de cada varredura e compara os dois resultados bit a bit, com as transições de estado --- e não apenas o valor final --- incluídas na comparação.
 
-\begin{table}[htb]
-    \centering
-    \caption{Especificação da máquina de prioridade de modos do bloco PID}
-    \label{qua:estados-pid}
-    \begin{tabular}{|l|l|p{6.5cm}|}
-        \hline
-        Estado & Condição de entrada & Comportamento \\
-        \hline
-        \textsc{Desabilitado} & \texttt{EN = FALSE} & Bloco não executa; \texttt{CV} congelado no último valor; estado interno preservado. \\
-        \textsc{Reset} & \texttt{EN = TRUE} \textbf{e} \texttt{RESET = TRUE} & Integrador zerado; \texttt{CV = outMin} imediatamente. \\
-        \textsc{Manual} & \texttt{EN = TRUE}, \texttt{RESET = FALSE} \textbf{e} \texttt{MANUAL = TRUE} & \texttt{CV} segue \texttt{MAN\_CV}; integrador em \textit{back-tracking} para transição sem salto (\textit{bumpless transfer}). \\
-        \textsc{Automático} & \texttt{EN = TRUE}, \texttt{RESET = FALSE} \textbf{e} \texttt{MANUAL = FALSE} & Algoritmo PID posicional com banda morta e \textit{anti-windup} por \textit{back-calculation} (Seção~\ref{sub:testes-sistema}). \\
-        \hline
-    \end{tabular}
-
-    {\footnotesize Fonte: Elaborado pelo autor (2026), com base em \texttt{VmInstr\_Control.c}.\par}
-\end{table}
-
-Essa especificação de estados é a que será transcrita para um \textit{chart} \textit{Stateflow} na Semana~4 do cronograma apresentado na Seção~\ref{sec:migracao-stm32} (Quadro~\ref{qua:cronograma-migracao}).
-O papel desse modelo é servir de referência comportamental para a validação cruzada prevista no objetivo específico de comparação de tabelas de imagem de saída (Seção~\ref{sec:objespecificos}): o mesmo conjunto de estímulos de entrada é aplicado tanto ao modelo simulado quanto à \textit{VM} em execução real, e as transições de estado --- não apenas o valor final de \texttt{CV} --- são comparadas entre os dois, de forma análoga à estratégia empregada por Duggan et al. \cite{duggan:2022} na geração e validação automática de código de CLP a partir de modelo.
+A máquina de modos do bloco PID foi escolhida como primeiro artefato de modelagem por estar inteiramente especificada por estados e transições: quatro modos com prioridade estrita, avaliados nesta ordem a cada execução do bloco --- \textsc{Desabilitado}, \textsc{Reset}, \textsc{Manual} e \textsc{Automático} ---, como mostram a Figura~\ref{fig:stateflow-pid} e a Tabela~\ref{tab:estados-pid}.
 
 \begin{figure}[htb]
     \centering
-    \fbox{\begin{minipage}{0.85\textwidth}
-        \centering
-        \vspace{1.5cm}
-        \textit{Figura a inserir: chart Stateflow com os quatro estados (Desabilitado, Reset, Manual, Automático), setas de transição rotuladas com as condições do Quadro~\ref{qua:estados-pid}, e a prioridade hierárquica indicada por estados superpostos (superstates), conforme convenção do Stateflow.}
-        \vspace{1.5cm}
-    \end{minipage}}
-    \caption{Máquina de estados do bloco PID modelada em Stateflow}
+    \begin{tikzpicture}[x=1cm,y=1cm]
+        \node[diamond, draw, aspect=2.2, align=center, font=\footnotesize, inner sep=1pt, fill=gray!10] (en) at (0,0) {\texttt{EN}?};
+        \node[diamond, draw, aspect=2.2, align=center, font=\footnotesize, inner sep=1pt, fill=gray!10] (rs) at (4.6,0) {\texttt{RESET}?};
+        \node[diamond, draw, aspect=2.2, align=center, font=\footnotesize, inner sep=1pt, fill=gray!10] (mn) at (9.2,0) {\texttt{MANUAL}?};
+        \node[estado] (des) at (0,-2.6) {\textsc{Desabilitado}};
+        \node[estado] (res) at (4.6,-2.6) {\textsc{Reset}};
+        \node[estado] (man) at (9.2,-2.6) {\textsc{Manual}};
+        \node[estado] (aut) at (12.6,0) {\textsc{Automático}};
+        \draw[seta] (en) -- node[rotulo, above] {sim} (rs);
+        \draw[seta] (rs) -- node[rotulo, above] {não} (mn);
+        \draw[seta] (mn) -- node[rotulo, above] {não} (aut);
+        \draw[seta] (en) -- node[rotulo, left] {não} (des);
+        \draw[seta] (rs) -- node[rotulo, left] {sim} (res);
+        \draw[seta] (mn) -- node[rotulo, left] {sim} (man);
+    \end{tikzpicture}
+    \caption{Prioridade dos modos do bloco PID (especificação do \textit{chart} \textit{Stateflow})}
     \label{fig:stateflow-pid}
 
     {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
 \end{figure}
 
+\begin{table}[htb]
+    \centering
+    \caption{Especificação da máquina de modos do bloco PID}
+    \label{tab:estados-pid}
+    \begin{tabular}{|l|p{4.6cm}|p{7.2cm}|}
+        \hline
+        Modo & Condição & Comportamento \\
+        \hline
+        \textsc{Desabilitado} & \texttt{EN} = falso & Bloco não calcula; \texttt{CV} assume o limite mínimo de saída; o integrador é preservado, para retomada próxima do ponto de parada. \\
+        \textsc{Reset} & \texttt{EN} verdadeiro e \texttt{RESET} verdadeiro & Integrador zerado; \texttt{CV} igual ao limite mínimo. \\
+        \textsc{Manual} & \texttt{EN} verdadeiro, \texttt{RESET} falso e \texttt{MANUAL} verdadeiro & \texttt{CV} segue o valor manual, limitado à faixa; integrador em \textit{back-tracking} para transição sem salto. \\
+        \textsc{Automático} & \texttt{EN} verdadeiro, \texttt{RESET} e \texttt{MANUAL} falsos & PID posicional com banda morta e anti-\textit{windup} por integração condicional. \\
+        \hline
+    \end{tabular}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{table}
+
 
 %% ------------------------------------------------------------------------- %%
-\section{Validação e Testes}
+\section{Estratégia de Validação e Testes}
 \label{sec:validacao-testes}
 
-A validação da implementação é conduzida em três níveis, escolhidos de acordo com o que cada um é capaz de comprovar isoladamente: testes de unidade e regressão isolam o comportamento de um bloco funcional na bancada real, sem depender de planta simulada; um teste de integração automatizado exercita a máquina de estados do protocolo de comunicação contra o firmware real via porta serial; e testes de sistema em malha fechada (\textit{Hardware-in-the-Loop}, \textit{HIL}) validam o comportamento do controlador PID contra arquétipos de processo industrial simulados em tempo real.
-Os três níveis de teste descritos a seguir foram executados em um protótipo de desenvolvimento equivalente, anterior à conclusão da implementação específica ao STM32F767ZI (Seção~\ref{sec:migracao-stm32}); como a lógica de aplicação e o motor de execução da \textit{VM} nunca acessam periféricos fora do contrato definido por \texttt{Bsp.h} (Seção~\ref{sec:hal-comunicacao}), o comportamento validado é independente do microcontrolador utilizado, e a repetição desses ensaios diretamente no STM32F767ZI está prevista para a Semana~5 do cronograma (Quadro~\ref{qua:cronograma-migracao}).
+A validação é organizada em níveis de teste, escolhidos de acordo com o que cada um comprova isoladamente, conforme a prática da engenharia de \textit{software} descrita na norma ISO/IEC/IEEE 29119 \cite{iso:29119-1}.
+Os \textbf{testes de unidade} isolam um grupo de instruções e comparam a imagem de saídas produzida com a de um oráculo.
+Os \textbf{testes de integração} exercitam o protocolo de comunicação, o carregamento do \textit{bytecode} e a execução conjuntamente, inclusive com entradas malformadas.
+Os \textbf{testes de sistema} fecham a malha de controle com uma planta simulada em tempo real (\textit{Hardware-in-the-Loop}, \textit{HIL}), técnica que permite validar o controlador real sem expor um processo físico a falhas \cite{isermann:1999}; sua aplicação ao bloco PID é apresentada no \ref{ape:pid}.
+Os \textbf{testes de desempenho} medem o tempo de varredura e o consumo de memória, atendendo ao objetivo de análise quantitativa da solução.
 
-\subsection{Testes de Unidade e Regressão}
-\label{sub:testes-unidade}
-
-Os testes de unidade e regressão do bloco PID cobrem sete cenários (identificados A1 a A7), cada um definido por objetivo, procedimento numerado e critério de aceite formal, executados diretamente na bancada (CLP + cabo serial, sem planta HIL).
-O Quadro~\ref{qua:testes-unidade} resume os sete cenários.
-
-\begin{table}[htb]
-    \centering
-    \caption{Testes de unidade e regressão do bloco PID}
-    \label{qua:testes-unidade}
-    \begin{tabular}{|l|l|p{6.5cm}|}
-        \hline
-        ID & Cenário & Critério de aceite \\
-        \hline
-        A1 & \texttt{EN} armazenado via \texttt{ST} & \texttt{EN} e \texttt{Q} caem no ciclo seguinte ao desligamento; \texttt{CV} vai a \texttt{outMin}; \texttt{INTEGRAL} é preservado (não é zerado). \\
-        A2 & \texttt{CV} sem truncamento de 4 \textit{bits} & \texttt{AO4} (saída física) é sempre igual a \texttt{PID0.CV}, sem colisão de índice. \\
-        A3 & \texttt{RESET} & Integrador zerado e \texttt{CV = outMin} durante o \texttt{RESET}; retomada normal ao soltar. \\
-        A4 & \textit{Bumpless transfer} (Manual $\leftrightarrow$ Automático) & \texttt{CV} não apresenta salto abrupto em nenhuma das duas transições. \\
-        A5 & Banda morta (\textit{deadband}) & \texttt{CV} permanece constante enquanto $\lvert SP - PV \rvert$ está dentro da banda. \\
-        A6 & \textit{Setpoint} dinâmico & \texttt{PV} converge ao novo \texttt{SP} após cada variação, sem oscilação sustentada. \\
-        A7 & Ausência de colisão entre campos do PID & Cada campo do protocolo de depuração retorna um valor distinto e plausível. \\
-        \hline
-    \end{tabular}
-
-    {\footnotesize Fonte: Elaborado pelo autor (2026), adaptado do plano de testes do bloco PID.\par}
-\end{table}
-
-Os cenários A1 e A2 correspondem à correção de dois defeitos identificados durante o desenvolvimento do bloco PID: no primeiro, o bit \texttt{EN} era lido diretamente do acumulador lógico da \textit{rung} no instante da instrução \texttt{PID}, herdando o resultado de qualquer lógica anterior que reutilizasse esse acumulador; a correção seguiu o mesmo padrão já empregado pelos blocos \texttt{Timer} e \texttt{Counter} --- armazenar o bit em uma instrução \texttt{ST} dedicada, em \textit{rung} própria, e ler o valor já persistido no mapa de memória do bloco, não o acumulador --- eliminando essa classe de erro por reutilizar uma solução já validada em vez de introduzir uma nova.
-No segundo defeito, o campo que seleciona qual sub-campo do bloco PID está sendo lido ou escrito por uma instrução de \textit{word} (\texttt{TYPE\_AUX}) dispõe de apenas 4 \textit{bits} no formato do bytecode (Seção~\ref{sec:vm-isa}), suficientes para 16 valores; o enumerador original, porém, possuía 20 membros, o que fazia o índice de \texttt{CV} colidir, por aritmética de módulo, com o de \texttt{RESET}.
-A correção adotada --- dividir o enumerador em três, um para instruções de \textit{bit} (7 valores), um para instruções de \textit{word} (13 valores) e um exclusivo do protocolo de depuração, que não possui essa limitação de 4 \textit{bits} (20 valores) --- é justificada pelo próprio opcode da instrução: como a família da instrução (\textit{bit} ou \textit{word}) já é conhecida no momento da decodificação, cada enumerador cabe confortavelmente no espaço de 4 \textit{bits} correspondente, sem necessidade de comprimir 20 significados em um único espaço de 16 valores.
-
-\subsection{Teste de Integração do Protocolo de Comunicação}
-\label{sub:teste-integracao}
-
-O protocolo de comunicação simplificado (Seção~\ref{sec:hal-comunicacao}) é validado por um teste de integração automatizado que injeta, via porta serial real, pacotes propositalmente malformados --- comando inválido, tamanho inconsistente, CRC incorreto, identificador de \textit{hardware} inválido, entre outros --- e verifica se o firmware responde com o código de \texttt{NACK} correto para cada categoria de erro, registrando o resultado de cada cenário em um arquivo de \textit{log}.
-Esse teste difere dos testes de unidade da Seção~\ref{sub:testes-unidade} por dois aspectos: primeiro, ele não testa um bloco funcional da lógica \textit{Ladder}, mas a máquina de estados do próprio protocolo de comunicação, camada mais baixa da pilha de software; segundo, por ser escrito em um roteiro executável (não um procedimento manual), o veredito de cada cenário --- aprovado ou reprovado --- é determinado automaticamente pela comparação entre o código de \texttt{NACK} recebido e o esperado, o que o caracteriza como teste de integração automatizado, e não como teste manual de bancada.
-A escolha de validar justamente as respostas de erro, e não apenas o caminho de sucesso, justifica-se pelo próprio papel do protocolo simplificado: como a autenticação por desafio-resposta foi deliberadamente removida do escopo desta implementação (Seção~\ref{sec:hal-comunicacao}), a rejeição correta de pacotes malformados passa a ser a principal barreira de robustez do canal de comunicação contra ruído ou uso incorreto da ferramenta de \textit{host}.
-
-\subsection{Testes de Sistema, Aceitação e Desempenho}
-\label{sub:testes-sistema}
-
-Os testes de sistema validam o bloco PID em malha fechada real, com o firmware em execução no microcontrolador conectado, por meio de um instrumento de aquisição analógica (\textit{Analog Discovery 3}), a uma planta industrial simulada em tempo real no \textit{MATLAB}: o sinal de controle (\texttt{CV}) sai por uma saída analógica real e retorna, após ser processado pelo modelo da planta, por uma entrada analógica real --- caracterizando um ensaio \textit{Hardware-in-the-Loop} (\textit{HIL}), no qual apenas a física do processo é virtual.
-Optou-se deliberadamente por não utilizar o bloco de controle genérico do \textit{Simulink} para fechar essa malha: ele não reproduz o mecanismo de \textit{anti-windup} por \textit{back-calculation} nem a lógica de saturação implementados no firmware real, de modo que fechar a malha com ele estaria validando um controlador diferente daquele que este trabalho propõe validar.
-
-O mesmo controlador (ganhos fixos, $K_p=0{,}4$, $K_i=0{,}05$, $K_d=0$) foi ensaiado contra cinco arquétipos clássicos de processo industrial, escolhidos por cobrirem, em conjunto, praticamente qualquer dinâmica de processo real encontrada na prática de controle: primeira ordem rápida, primeira ordem lenta (para expor problemas de \textit{windup} integral), primeira ordem com atraso de transporte (o modelo mais comum de processo industrial real), integrador puro (processo sem autorregulação) e segunda ordem subamortecida (processos mecânicos ressonantes).
-A decisão de manter $K_d=0$ em todos os ensaios é deliberada, não uma limitação: o termo derivativo, calculado sobre a variável medida, amplifica diretamente o ruído do conversor analógico-digital, e essa característica está documentada como comentário no próprio código-fonte de \texttt{VmInstr\_Control.c}.
-A Tabela~\ref{tab:resultados-hil} apresenta os resultados quantitativos obtidos, com o critério de acomodação definido como o primeiro instante, após o acionamento do controlador, a partir do qual $\lvert PV - SP \rvert \leq 2$ e essa condição não é mais violada até o fim da janela de observação.
-
-\begin{table}[htb]
-    \centering
-    \caption{Resultados dos ensaios HIL para os cinco arquétipos de planta}
-    \label{tab:resultados-hil}
-    \begin{tabular}{|l|c|c|}
-        \hline
-        Arquétipo de planta & \textit{Overshoot} máximo & Tempo de acomodação \\
-        \hline
-        1 --- Primeira ordem rápida & 0,3\% & 4,0 s \\
-        2 --- Primeira ordem lenta & 26,7\% & 76,1 s \\
-        3 --- Atraso de transporte (ganhos originais) & 47,2\% & 80,1 s (não convergiu na janela) \\
-        4 --- Integrador puro & 6,2\% & 34,0 s \\
-        5 --- Segunda ordem subamortecida & 42,2\% & 28,9 s \\
-        \hline
-    \end{tabular}
-
-    {\footnotesize Fonte: Elaborado pelo autor (2026), calculado automaticamente a partir dos registros dos ensaios.\par}
-\end{table}
-
-O arquétipo de atraso de transporte (Planta 3) revelou o pior caso da bateria --- \textit{overshoot} de 47,2\% e sinal de ciclo-limite, com a saída de controle saturando repetidamente em zero --- resultado esperado teoricamente, já que o atraso de transporte reduz a margem de fase de forma mais severa do que a lentidão isolada (Planta 2) ou a ausência de autorregulação (Planta 4), mas cuja magnitude só foi conhecida empiricamente por meio deste ensaio.
-Um reajuste de ganhos foi então aplicado a essa planta, com base na heurística clássica $T_i \approx \tau + 2L$ para processos com atraso de transporte: os ganhos foram ajustados de $K_p=0{,}4$/$K_i=0{,}05$ para $K_p=0{,}3$/$K_i=0{,}02$, reduzindo o \textit{overshoot} de 47,2\% para 0,10\% e o tempo de acomodação de 80,1~s (sem convergência plena na janela original) para 16,0~s.
-Esse caso de reajuste é apresentado não apenas como correção pontual, mas como evidência de que a bateria de cinco arquétipos é suficiente para expor, de forma quantificada, uma fragilidade de sintonia que uma validação em malha aberta ou de arquétipo único não revelaria: o mesmo controlador, com os mesmos ganhos, comporta-se de forma satisfatória em quatro das cinco plantas e criticamente subamortecido na quinta, confirmando que o ajuste de um controlador PID é inerentemente dependente do processo, e não uma propriedade apenas do algoritmo.
+A infraestrutura de teste é composta por quatro elementos.
+Programas de teste são gerados por uma biblioteca de montagem de \textit{bytecode} em \textit{Python}, com uma função por instrução que codifica a palavra de 32 \textit{bits}, o que dispensa o cálculo manual dos campos.
+\textit{Scripts} no \textit{host} transferem o \textit{bytecode}, forçam valores de entrada e observam a imagem de saídas por meio dos comandos de depuração do protocolo.
+Modelos em \textit{Simulink}/\textit{Stateflow} e cálculos em \textit{MATLAB} fornecem o resultado esperado (oráculo), e diagramas de temporização da própria norma IEC 61131-3 servem de referência para temporizadores, contadores e bordas \cite{iec:2025}.
+Por fim, um instrumento de aquisição analógica (\textit{Analog Discovery 3}) mede as saídas analógicas e fecha a malha nos ensaios \textit{HIL}.
+A Figura~\ref{fig:fluxo-validacao} resume o fluxo de um caso de teste.
 
 \begin{figure}[htb]
     \centering
-    \fbox{\begin{minipage}{0.85\textwidth}
-        \centering
-        \vspace{1.5cm}
-        \textit{Figura a inserir: diagrama de blocos da malha HIL (CLP --- saída analógica AO4 $\rightarrow$ Analog Discovery 3 $\rightarrow$ MATLAB, executando o modelo da planta $\rightarrow$ Analog Discovery 3 $\rightarrow$ CLP --- entrada analógica AI3), com a malha de realimentação fechada explicitamente desenhada.}
-        \vspace{1.5cm}
-    \end{minipage}}
-    \caption{Malha de ensaio \textit{Hardware-in-the-Loop}}
-    \label{fig:malha-hil}
+    \begin{tikzpicture}[x=1cm,y=1cm]
+        \node[bloco, minimum width=2.7cm] (prog) at (0,0) {Programa de\\teste (montador)};
+        \node[bloco, minimum width=2.7cm] (down) at (3.6,0) {Transferência\\pelo protocolo};
+        \node[bloco, minimum width=2.7cm] (run) at (7.2,0) {Execução na\\máquina virtual};
+        \node[bloco, minimum width=2.7cm] (obs) at (10.8,0) {Imagem de saídas\\(depuração)};
+        \node[bloco, minimum width=2.7cm] (est) at (0,-2.3) {Vetor de\\estímulos};
+        \node[bloco, minimum width=2.7cm] (orac) at (7.2,-2.3) {Oráculo (modelo,\\cálculo, norma)};
+        \node[estado, minimum width=2.7cm, fill=gray!25] (cmp) at (10.8,-2.3) {Comparação\\e veredito};
+        \draw[seta] (prog) -- (down);
+        \draw[seta] (down) -- (run);
+        \draw[seta] (run) -- (obs);
+        \draw[seta] (obs) -- (cmp);
+        \draw[seta] (orac) -- (cmp);
+        \draw[seta] (est) -- (orac);
+        \draw[seta] (est.north) -- (prog.south);
+        \draw[seta] (est.east) -- ++(0.6,0) |- ([yshift=-4mm]run.south west) -- (run.south west);
+    \end{tikzpicture}
+    \caption{Fluxo de execução e avaliação de um caso de teste}
+    \label{fig:fluxo-validacao}
 
     {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
 \end{figure}
+
+O critério de aceitação depende do grupo: nas lógicas de contatos e bobinas exige-se igualdade bit a bit da imagem de saídas em todas as varreduras; nos temporizadores admite-se erro de até uma varredura mais a resolução da base de tempo; nas grandezas numéricas comparam-se os resultados com o cálculo do oráculo dentro da tolerância do tipo (exata para \textit{S32}, relativa para \textit{F32}).
+O Quadro de casos de teste (Tabela~\ref{tab:catalogo-testes}) organiza a cobertura pelo repertório de instruções da Tabela~\ref{tab:grupos-instrucoes}, de modo que cada grupo tenha ao menos um caso associado.
+O conjunto completo é conduzido sobre o STM32F767ZI.
+
+{\small\singlespacing\sloppy
+\begin{longtable}{|p{0.8cm}|p{3.2cm}|p{4.8cm}|p{2.8cm}|p{2.3cm}|}
+    \caption{Catálogo de casos de teste}
+    \label{tab:catalogo-testes}\\
+    \hline
+    ID & Cobertura & Procedimento & Oráculo & Situação \\
+    \hline
+    \endfirsthead
+    \hline
+    ID & Cobertura & Procedimento & Oráculo & Situação \\
+    \hline
+    \endhead
+    \hline
+    \multicolumn{5}{r}{\footnotesize continua na próxima página} \\
+    \endfoot
+    \hline
+    \endlastfoot
+    L1 & Contatos e lógica booleana: \texttt{LD}, \texttt{LDN}, \texttt{AND}, \texttt{ANDN}, \texttt{OR}, \texttt{ORN}, \texttt{XOR}, \texttt{XORN}, \texttt{NOT} & Tabela-verdade exaustiva com até três entradas & Tabela-verdade (modelo) & Especificado \\
+    \hline
+    L2 & Bobinas: \texttt{OUT}, \texttt{SET}, \texttt{RESET}, \texttt{TOGGLE} & Retenção do estado entre varreduras; alternância por borda & Modelo \textit{Stateflow} & Especificado \\
+    \hline
+    L3 & Bordas: \texttt{LDP}, \texttt{LDF}, \texttt{ANP}, \texttt{ANF}, \texttt{ORP}, \texttt{ORF} & Evento de duração de uma varredura; nível constante não gera evento & Diagrama de tempo & Especificado \\
+    \hline
+    L4 & Pilhas: \texttt{MPS}, \texttt{MRD}, \texttt{MPP}, \texttt{ANB}, \texttt{ORB} & Ramificações aninhadas até a profundidade máxima da pilha e além dela & Modelo \textit{Stateflow} & Especificado \\
+    \hline
+    L5 & Lógica de \textit{rung} composta & Selo, intertravamento e partida-parada, combinando L1 a L4 & Modelo \textit{Stateflow} & Especificado \\
+    \hline
+    T1 & \textit{TON} & Tempo programado constante e por registrador; quatro bases de tempo; \textit{EN} interrompido antes do fim; alteração do tempo programado durante a contagem & Diagrama IEC 61131-3 & Especificado \\
+    \hline
+    T2 & \textit{TOF} & Idem; religamento durante a contagem & Diagrama IEC 61131-3 & Especificado \\
+    \hline
+    T3 & \textit{TP} & Pulso de duração fixa; reacionamento durante o pulso ignorado & Diagrama IEC 61131-3 & Especificado \\
+    \hline
+    C1 & \textit{CTU}, \textit{CTD}, \textit{CTUD} & Contagem por borda de subida; saídas nos limites; valor programado constante e por registrador & Norma IEC 61131-3 & Especificado \\
+    \hline
+    C2 & \textit{Reset} e carga (\textit{load}) & Prioridade entre \textit{reset}, carga e contagem; valor negativo & Norma IEC 61131-3 & Especificado \\
+    \hline
+    N1 & Aritmética \textit{S32}: soma, subtração, multiplicação, divisão, módulo, mínimo, máximo, \textit{inc}, \textit{dec}, negação e módulo & Valores nominais, zero e limites do inteiro de 32 \textit{bits} & Cálculo em \textit{MATLAB} & Especificado \\
+    \hline
+    N2 & Aritmética \textit{F32} (mesmas operações) & Valores nominais, muito pequenos e muito grandes; tolerância relativa & Cálculo em \textit{MATLAB} & Especificado \\
+    \hline
+    N3 & Casos-limite aritméticos & Divisão por zero (resultado nulo), módulo por zero (sem escrita), valor absoluto de \texttt{INT32\_MIN} (saturado), escalonamento com faixa de entrada nula (sem escrita) & Especificação da instrução (\ref{ape:isa}) & Especificado \\
+    \hline
+    N4 & Comparação \textit{S32} e \textit{F32}: igual, diferente, maior, menor, maior ou igual, menor ou igual & Fronteiras (igualdade, mais e menos uma unidade) & Cálculo em \textit{MATLAB} & Especificado \\
+    \hline
+    N5 & Conversão e escalonamento: \texttt{ITOF}, \texttt{FTOI}, \texttt{SCALE} & Pontos extremos e intermediários da faixa; operando constante e por registrador & Cálculo em \textit{MATLAB} & Especificado \\
+    \hline
+    A1 & Entradas analógicas, saídas PWM e saída analógica & Erro em $N$ pontos da faixa & Instrumento de medição & Especificado \\
+    \hline
+    B1 & Bloco \textit{RAMP} & \texttt{EN} desligado; borda de subida com valor inicial; subida e descida com taxas distintas; saída no alvo & Modelo \textit{Stateflow} & Especificado \\
+    \hline
+    B2 & Bloco PID: sete cenários de unidade e regressão & Modos, transferência sem salto, banda morta, \textit{setpoint} dinâmico (\ref{ape:pid}) & Modelo de referência & Executado \\
+    \hline
+    B3 & Bloco PID em malha fechada (\textit{HIL}) & Cinco arquétipos de planta (\ref{ape:pid}) & Modelo da planta & Executado \\
+    \hline
+    I1 & Transferência de \textit{bytecode} & Programa recebido idêntico ao enviado; execução após a carga & Comparação byte a byte & Especificado \\
+    \hline
+    I2 & Robustez do protocolo & Comando inválido, tamanho inconsistente, CRC incorreto e identificador de dispositivo inválido, com o \textit{NACK} correto para cada categoria & Código de \textit{NACK} esperado & Executado \\
+    \hline
+    I3 & Robustez da máquina virtual & Opcode inválido leva a \textit{trap}; índice fora da faixa não acessa memória externa às regiões & Comportamento especificado & Especificado \\
+    \hline
+    P1 & Tempo de varredura & Programas de tamanho crescente; média, máximo e variação & Medição & Especificado \\
+    \hline
+    P2 & Consumo de memória & \textit{Flash} e RAM ocupadas, a partir do relatório de \textit{link} & Medição & Especificado \\
+    \hline
+    P3 & Custo por grupo de instruções & Tempo de execução por instrução em cada grupo & Medição & Especificado \\
+\end{longtable}
+}
+
+\noindent A coluna de situação distingue os casos já executados dos apenas especificados; os resultados dos primeiros constam do \ref{ape:pid} e do registro de ensaios do protocolo, e os demais passam a ser registrados nesta tabela à medida que são executados.
 
 
 %% ------------------------------------------------------------------------- %%
 \section{Síntese}
 \label{sec:sintese-implementacao}
 
-Este capítulo apresentou os aspectos de implementação da solução cujos fundamentos teóricos foram estabelecidos no Capítulo~\ref{cap:fundamentacao}: um motor de execução \textit{fetch-decode-execute} com conjunto de instruções de largura fixa e despacho em tempo constante; uma camada de abstração de \textit{hardware} cuja fronteira de portabilidade é evidenciada pela proporção de apenas 4 em 66 arquivos que concentram acesso direto a periféricos; um plano de implementação para o STM32F767ZI delimitado por essa mesma fronteira; e uma estratégia de validação em três níveis --- unidade/regressão, integração e sistema/desempenho --- já parcialmente executada, com resultados quantificados que comprovam tanto o funcionamento do bloco PID corrigido quanto os limites de sintonia de um controlador fixo frente a arquétipos de processo distintos.
-As lacunas ainda abertas na data de fechamento deste capítulo --- implementação da \textit{HAL} efetivamente concluída no STM32F767ZI, modelo Stateflow construído e validação cruzada entre modelo e \textit{VM} real --- seguem o cronograma do Quadro~\ref{qua:cronograma-migracao} e serão incorporadas como atualização deste capítulo antes da defesa deste trabalho.
+Este capítulo apresentou a implementação da solução cujos fundamentos foram estabelecidos no Capítulo~\ref{cap:fundamentacao}: um motor de execução \textit{fetch-decode-execute} com instruções de 32 \textit{bits} e despacho em tempo constante; blocos funcionais com estado segregado em mapas de memória de acesso validado; uma camada de abstração que confina ao contrato de um único módulo toda a dependência do STM32F767ZI; um protocolo com enquadramento COBS e verificação CRC16; modelos de referência em \textit{Simulink}/\textit{Stateflow}; e uma estratégia de validação em quatro níveis, com cobertura de todos os grupos do repertório de instruções.
+As escolhas de projeto e suas justificativas estão reunidas na Tabela~\ref{tab:escolhas-projeto}.
+
+\begin{table}[htb]
+    \centering
+    \caption{Escolhas de projeto e justificativas}
+    \label{tab:escolhas-projeto}
+    \begin{tabular}{|p{4.7cm}|p{9.7cm}|}
+        \hline
+        Escolha & Justificativa \\
+        \hline
+        Instrução de 32 \textit{bits} & Avanço constante do contador e decodificação simples \cite{patterson:2020}. \\
+        \hline
+        Despacho por tabela de opcodes & Tempo de despacho constante e independente da instrução \cite{liu:2000}. \\
+        \hline
+        Alocação estática de memória & Sem fragmentação nem variação de tempo de alocação \cite{liu:2000}. \\
+        \hline
+        \textit{Bytecode} somente leitura e estado em mapas & Permite atualizar a lógica sem regravar o \textit{firmware} e conter erros do usuário (\textit{sandbox}). \\
+        \hline
+        Validação de índice em cada acesso & Um erro de endereçamento não alcança memória fora das regiões alocadas. \\
+        \hline
+        \textit{Bytecode} validado e pré-processado na carga & Retira configuração estática do laço de varredura. \\
+        \hline
+        Aritmética \textit{S32} e \textit{F32} nativa & A FPU do alvo executa \textit{F32} em \textit{hardware} \cite{st:ds11532}. \\
+        \hline
+        Temporização pela base de tempo do sistema & O intervalo independe do tamanho do programa. \\
+        \hline
+        PID com amostragem fixa & A variação do tempo de varredura não entra nos termos integral e derivativo \cite{astrom:2006}. \\
+        \hline
+        Derivativo sobre a variável de processo & Evita o pico de saída quando o \textit{setpoint} muda \cite{astrom:2006}. \\
+        \hline
+        Anti-\textit{windup} por integração condicional & Suspende a integração sob saturação e a retoma na inversão do erro \cite{astrom:2006}. \\
+        \hline
+        Rastreamento do integrador no modo manual & Transição de manual para automático sem salto \cite{astrom:2006}. \\
+        \hline
+        Enquadramento COBS e CRC16 & Delimitação sem ambiguidade com sobrecarga limitada e detecção de corrupção \cite{cheshire:1999}. \\
+        \hline
+        Identificador de dispositivo nos quadros & Rejeição de comandos endereçados a outro dispositivo. \\
+        \hline
+        \textit{STM32Cube HAL} em vez de acesso direto a registradores & Reduz risco de erro de inicialização; sobrecusto contido na camada de abstração. \\
+        \hline
+        STM32F767ZI & FPU, memórias acopladas ao núcleo, periféricos e ferramental integrado \cite{st:ds11532,st:um1974}. \\
+        \hline
+    \end{tabular}
+
+    {\footnotesize Fonte: Elaborado pelo autor (2026).\par}
+\end{table}

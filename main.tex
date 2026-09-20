@@ -2,6 +2,12 @@
 
 \input{preambulo}
 
+% Entrada de apêndice no Sumário: "Apêndice A --- Título" (sem largura fixa de
+% número). Cada arquivo de apêndice liga \apendiceNumberline antes do \chapter e
+% restaura \numberlineorig depois, para que as seções sigam o formato padrão.
+\let\numberlineorig\numberline
+\newcommand{\apendiceNumberline}[1]{#1\ ---\ }
+
 % ---------------------------------------------------------------------------- %
 % Corpo do texto
 \begin{document}
@@ -224,20 +230,30 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.\\
 % ---------------------------------------------------------------------------- %
 \chapter*{Lista de Abreviaturas}
 \begin{tabular}{ll}
+	ADC		& \textit{Analog-to-Digital Converter} \\
 	ARM 	& \textit{Advanced RISC Machine} \\
 	CLP		& Controlador Lógico Programável \\
+	COBS	& \textit{Consistent Overhead Byte Stuffing} \\
+	CRC		& \textit{Cyclic Redundancy Check} \\
+	DMA		& \textit{Direct Memory Access} \\
 	FBD		& \textit{Function Block Diagram} \\
+	FPU		& \textit{Floating-Point Unit} \\
 	GPIO	& \textit{General Purpose Input/Output} \\
 	HAL		& \textit{Hardware Abstraction Layer} \\
+	HIL		& \textit{Hardware-in-the-Loop} \\
 	IEC		& \textit{International Electrotechnical Commission} \\
 	IL		& \textit{Instruction List} \\
 	IoT		& \textit{Internet of Things} \\
 	ISA		& \textit{Instruction Set Architecture} \\
 	LD		& \textit{Ladder Diagram} \\
+	MBD		& \textit{Model-Based Design} \\
+	PID		& Proporcional-Integral-Derivativo \\
 	POSIX	& \textit{Portable Operating System Interface} \\
+	PWM		& \textit{Pulse-Width Modulation} \\
 	RAM		& \textit{Random Access Memory} \\
 	SFC		& \textit{Sequential Function Chart} \\
 	ST		& \textit{Structured Text} \\
+	USART	& \textit{Universal Synchronous/Asynchronous Receiver/Transmitter} \\
 	VM		& \textit{Virtual Machine} (Máquina Virtual) \\
 	vPLC	& \textit{Virtual Programmable Logic Controller} \\
 
@@ -275,7 +291,16 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.\\
 \renewcommand{\appendixname}{Apêndice} % Para trocar Apendice por Anexo (Se necessário)
 \setcounter{chapter}{0} % ressetar a contagem
 
-\include{apendices/01-base-dados}
+% Numeração dos apêndices (NBR 14724): "APÊNDICE A --- TÍTULO"; seções, tabelas
+% e figuras internas numeradas como A.1, A.2 etc.
+\renewcommand{\thechapter}{\appendixname~\Alph{chapter}}
+\renewcommand{\thesection}{\Alph{chapter}.\arabic{section}}
+\renewcommand{\thetable}{\Alph{chapter}.\arabic{table}}
+\renewcommand{\thefigure}{\Alph{chapter}.\arabic{figure}}
+\titleformat{\chapter}[hang]{\normalfont\bfseries}{\MakeUppercase{\thechapter}\ ---}{0.5em}{\MakeUppercase}
+
+\include{apendices/01-especificacao-isa}
+\include{apendices/02-ensaios-pid}
 
 
 % ---------------------------------------------------------------------------- %

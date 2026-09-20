@@ -55,6 +55,17 @@ Já implementado em `preambulo.tex` via `titlesec` — não redefinir sem necess
 - Rótulos (`\label`) seguem prefixo por tipo, já em uso no projeto: `cap:` (capítulo), `sec:`/`sub:` (seção/subseção), `fig:` (figura), `tab:` (tabela), `ape:` (capítulo de apêndice).
 - Manter o padrão de comentários de separação de blocos (`% ---------------------------------------------------------------------------- %`) já usado nos arquivos existentes.
 
+## Capítulo de Implementação e apêndices
+
+- **Nível de detalhe**: a monografia descreve **módulos e decisões de projeto**, nunca nomes de arquivos-fonte, contagem de arquivos ou trechos de código. Cada escolha de projeto deve vir acompanhada de justificativa (citação ou argumento técnico).
+- **Sem cronograma semanal** no texto. O plano de execução é ferramenta de trabalho, não conteúdo da monografia.
+- **O texto trata a plataforma-alvo (STM32F767ZI) como a plataforma do projeto.** Não mencionar origem do código, plataformas anteriores, empresas, produtos comerciais ou migração. Dados de ensaios anteriores são atribuídos à "plataforma de desenvolvimento do firmware".
+- **Nunca apresentar como executado o que não foi executado.** O que já foi ensaiado (com registros) entra com resultados; o que ainda será testado entra como caso **especificado** (coluna "Situação" do catálogo de testes), com oráculo e critério de aceitação. Resultados só passam a constar quando existirem registros reais.
+- **Apêndices** (obra do próprio autor, NBR 14724 — não usar "Anexo"): `apendices/01-especificacao-isa.tex` (especificação completa dos 76 opcodes) e `apendices/02-ensaios-pid.tex` (testes de unidade e ensaios HIL do bloco PID). Referenciar com `\ref{ape:...}` sem escrever a palavra "Apêndice" antes (o número já sai como "Apêndice A"). A formatação de apêndice (título, numeração A.1, entrada no Sumário) está em `main.tex`, após `\appendix`.
+- **Nomes de pessoas**: citar apenas o autor da monografia e o orientador; omitir colegas e demais participantes do desenvolvimento.
+- **Figuras** do capítulo são desenhadas em TikZ (`tikz` carregado no preâmbulo); estilos compartilhados (`bloco`, `estado`, `seta`, `rotulo`) são definidos no início do capítulo. Não deixar "Figura a inserir".
+- **Fatos técnicos** (opcodes, capacidades, comportamento de blocos) devem ser conferidos no código-fonte do firmware antes de escritos; a descrição do PID é: posicional, amostragem fixa, derivativo sobre a variável de processo, anti-*windup* por integração condicional (*clamping*), *back-tracking* no modo manual.
+
 ## Compilação
 
 - Sequência: `pdflatex → bibtex → pdflatex → pdflatex`, sempre a partir de `main.tex` (nunca compilar um capítulo isolado).
