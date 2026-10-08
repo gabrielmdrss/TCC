@@ -2,7 +2,62 @@
 \chapter{Considerações Finais e Sugestões para Trabalhos Futuros}
 \label{cap:finais}
 
+%% ------------------------------------------------------------------------- %%
+\section{Conclusões}
+\label{sec:conclusoes}
 
+Este trabalho implementou e validou, sobre o microcontrolador STM32F767ZI, uma máquina virtual de lógica \textit{Ladder} cujo motor de execução depende da plataforma apenas pelo contrato de uma camada de abstração de \textit{hardware}.
+A solução reúne um conjunto de 76 instruções, com palavra-base de 32 \textit{bits}, que cobre contatos, bobinas, bordas, pilhas lógicas, temporizadores, contadores, aritmética em inteiros e ponto flutuante, escalonamento, entradas e saídas analógicas e os blocos de controle PID e de rampa; memória alocada estaticamente, com validação de índice em cada acesso; e um protocolo serial com enquadramento COBS e verificação CRC16 para a carga do \textit{bytecode} e a depuração.
+Cada escolha de projeto foi acompanhada de justificativa (Quadro~\ref{qua:escolhas-projeto}).
+
+A validação seguiu um catálogo de casos de teste organizado por níveis (unidade, integração, sistema e desempenho) e cobrindo todos os grupos do repertório de instruções.
+Dos 220 passos de verificação funcional dos ensaios sobre a plataforma-alvo, 219 foram registrados como conformes, o que inclui a igualdade com a tabela-verdade em todas as combinações de entradas da lógica de contatos, a temporização e a contagem dentro das tolerâncias do critério de aceitação, resultados aritméticos exatos em \textit{S32} e dentro da tolerância relativa em \textit{F32}, e o comportamento do bloco PID; e todos os 52 pacotes malformados aplicados ao protocolo foram rejeitados com o código de \textit{NACK} previsto.
+O processo de validação também revelou quatro defeitos de implementação e três divergências entre a especificação do conjunto de instruções e o \textit{firmware}, todos corrigidos (Quadro~\ref{qua:defeitos}), o que evidencia o valor de casos de teste que vão além do funcionamento nominal --- programas maiores que um pacote, pacotes malformados e transições de pilha.
+Quanto ao desempenho, na configuração de depuração do compilador o tempo de varredura cresce linearmente com o tamanho do programa, a cerca de 37~$\mu$s por \textit{rung} de cinco instruções, e o programa de tamanho máximo suportado leva menos de 10~ms por varredura; o \textit{firmware} ocupa 3,74\% da memória \textit{Flash} e 3,05\% da RAM.
+
+O Quadro~\ref{qua:atendimento-objetivos} relaciona os objetivos específicos ao que foi alcançado.
+
+\begin{quadro}[htb]
+    \centering
+    \small
+    \begin{tabular}{|p{5.4cm}|p{2.2cm}|p{6.6cm}|}
+        \hline
+        Objetivo específico & Atendimento & Evidência e ressalva \\
+        \hline
+        Especificar e documentar a \textit{ISA} de 32 \textit{bits} compatível com o \textit{Ladder} da IEC 61131-3 & Atendido & Especificação dos 76 \textit{opcodes} no \ref{ape:isa}, conferida contra o \textit{firmware} e corrigida nos três pontos divergentes. \\
+        \hline
+        Modelar lógicas de referência em \textit{Simulink}/\textit{Stateflow} & Parcial & Especificação da máquina de modos do bloco PID (Seção~\ref{sec:stateflow-mbd}); as demais lógicas tiveram como referência tabelas-verdade, cálculos independentes e um modelo executável em \textit{Python}. \\
+        \hline
+        Implementar o motor de execução em linguagem C & Atendido & Seção~\ref{sec:vm-isa}; casos L, T, C, N e B do catálogo. \\
+        \hline
+        Desenvolver a \textit{HAL} para o \textit{STM32F7} & Atendido & Seção~\ref{sec:hal-implementacao}; uma entrada analógica e as saídas PWM e analógica verificadas sem medição elétrica dos sinais de saída. \\
+        \hline
+        Validar cruzadamente a \textit{VM} frente ao modelo de referência simulado & Parcial & Comparação com tabelas-verdade, cálculos independentes e modelo de referência em \textit{Python}; a comparação com os modelos \textit{Simulink}/\textit{Stateflow} não foi realizada. \\
+        \hline
+        Analisar o desempenho (varredura, \textit{RAM} e \textit{Flash}) & Atendido & Seção~\ref{sub:resultados-desempenho}; medido em uma única configuração de compilação (depuração). \\
+        \hline
+    \end{tabular}
+
+    \caption{Atendimento dos objetivos específicos}
+    \label{qua:atendimento-objetivos}
+    \fonte{Elaborado pelo autor (2026).}
+\end{quadro}
+
+O objetivo geral foi atendido no que concerne à implementação e à validação funcional sobre a plataforma-alvo.
+A afirmação de fidelidade à IEC 61131-3 restringe-se ao subconjunto \textit{Ladder} ensaiado, e a de execução determinística se apoia na alocação estática, no despacho em tempo constante e na regularidade do tempo de varredura medido --- a razão entre o máximo e o mínimo ficou entre 1,25 e 1,30 nos programas de 50 a 200 \textit{rungs}, parte dela atribuível à própria variação das entradas durante o acionamento das chaves ---, sem uma análise estatística de variação (\textit{jitter}) da varredura.
+As demais limitações dos resultados foram discutidas na Seção~\ref{sub:discussao-resultados}: a ausência da validação cruzada contra os modelos \textit{Simulink}/\textit{Stateflow}; a bancada com uma única entrada analógica e sem medição elétrica de PWM e da saída analógica, que opera de 0 a 3,3~V; a malha fechada com planta simulada não repetida no STM32F767ZI; e a medição de desempenho restrita à configuração de depuração.
+
+%% ------------------------------------------------------------------------- %%
 \section{Sugestões para Trabalhos Futuros}
 \label{sec:futuros}
 
+As limitações apontadas orientam as seguintes sugestões:
+
+\begin{itemize}
+    \item executar os modelos \textit{Simulink}/\textit{Stateflow} da lógica de contatos, da temporização e da contagem e realizar a validação cruzada contra a máquina virtual embarcada, com comparação das imagens de saída varredura a varredura;
+    \item repetir no STM32F767ZI os ensaios \textit{HIL} do bloco PID, com medição elétrica da saída analógica e dos sinais PWM por instrumento de aquisição, e acrescentar o estágio de condicionamento para a faixa de 0 a 10~V usual em CLPs;
+    \item medir o tempo de varredura com otimização do compilador e com a memória de instruções em cache (acelerador de \textit{Flash} e \textit{cache} do núcleo) habilitados, e investigar o comportamento do programa de 10 \textit{rungs}, que não segue o ajuste linear dos demais;
+    \item caracterizar a variação do tempo de varredura (\textit{jitter}) com entradas estáveis e sob carga de comunicação, para sustentar quantitativamente a afirmação de determinismo;
+    \item ampliar a bancada às três entradas analógicas e a mais canais digitais, e executar ensaios de longa duração e de injeção de falhas na comunicação;
+    \item avaliar o desempenho e a aderência do conjunto de instruções em outras plataformas, por meio de novas implementações do contrato da camada de abstração.
+\end{itemize}

@@ -1,0 +1,37 @@
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {quadro}{\numberline {3.1}{\ignorespaces Recursos disponíveis ao programa do usuário}}{11}{quadro.3.1}%
+\contentsline {quadro}{\numberline {3.2}{\ignorespaces Grupos de instruções da máquina virtual}}{14}{quadro.3.2}%
+\contentsline {quadro}{\numberline {3.3}{\ignorespaces Grupos de funções da camada de abstração e periféricos do STM32F767ZI}}{16}{quadro.3.3}%
+\contentsline {quadro}{\numberline {3.4}{\ignorespaces Especificação da máquina de modos do bloco PID}}{19}{quadro.3.4}%
+\contentsline {quadro}{\numberline {3.5}{\ignorespaces Casos de teste de lógica de contatos e bobinas}}{20}{quadro.3.5}%
+\contentsline {quadro}{\numberline {3.6}{\ignorespaces Casos de teste de temporizadores e contadores}}{21}{quadro.3.6}%
+\contentsline {quadro}{\numberline {3.7}{\ignorespaces Casos de teste de blocos numéricos}}{22}{quadro.3.7}%
+\contentsline {quadro}{\numberline {3.8}{\ignorespaces Casos de teste de entradas e saídas analógicas e de blocos de controle}}{23}{quadro.3.8}%
+\contentsline {quadro}{\numberline {3.9}{\ignorespaces Casos de teste de integração, robustez e desempenho}}{24}{quadro.3.9}%
+\contentsline {quadro}{\numberline {3.10}{\ignorespaces Alocação dos pinos da placa-alvo usados nos ensaios}}{25}{quadro.3.10}%
+\contentsline {quadro}{\numberline {3.11}{\ignorespaces Resultado do ensaio de robustez do protocolo (caso I2)}}{28}{quadro.3.11}%
+\contentsline {quadro}{\numberline {3.12}{\ignorespaces Defeitos e divergências identificados durante a validação e sua correção}}{30}{quadro.3.12}%
+\contentsline {quadro}{\numberline {3.13}{\ignorespaces Escolhas de projeto e justificativas}}{31}{quadro.3.13}%
+\addvspace {10\p@ }
+\contentsline {quadro}{\numberline {4.1}{\ignorespaces Atendimento dos objetivos específicos}}{33}{quadro.4.1}%
+\addvspace {10\p@ }
+\contentsline {quadro}{\numberline {A.1}{\ignorespaces Tamanho das instruções e estrutura auxiliar}}{35}{quadro.A.1}%
+\contentsline {quadro}{\numberline {A.2}{\ignorespaces Tipos de operando}}{36}{quadro.A.2}%
+\contentsline {quadro}{\numberline {A.3}{\ignorespaces Sub-tipos de operando dos blocos funcionais}}{36}{quadro.A.3}%
+\contentsline {quadro}{\numberline {A.4}{\ignorespaces Destinos da instrução \texttt {STW}}}{37}{quadro.A.4}%
+\contentsline {quadro}{\numberline {A.5}{\ignorespaces Instruções de controle de fluxo e pilhas}}{38}{quadro.A.5}%
+\contentsline {quadro}{\numberline {A.6}{\ignorespaces Contatos, lógica booleana e bobinas}}{39}{quadro.A.6}%
+\contentsline {quadro}{\numberline {A.7}{\ignorespaces Instruções de temporização e contagem}}{40}{quadro.A.7}%
+\contentsline {quadro}{\numberline {A.8}{\ignorespaces Aritmética e movimentação}}{40}{quadro.A.8}%
+\contentsline {quadro}{\numberline {A.9}{\ignorespaces Comparação, conversão e escalonamento}}{41}{quadro.A.9}%
+\contentsline {quadro}{\numberline {A.10}{\ignorespaces Saídas analógicas, escrita em bloco e blocos de controle}}{41}{quadro.A.10}%
+\addvspace {10\p@ }
+\contentsline {quadro}{\numberline {B.1}{\ignorespaces Testes de unidade e regressão do bloco PID}}{42}{quadro.B.1}%
+\addvspace {10\p@ }
+\contentsline {quadro}{\numberline {C.1}{\ignorespaces Códigos de \textit {NACK} obtidos no modo de conexão (7 casos)}}{46}{quadro.C.1}%
+\contentsline {quadro}{\numberline {C.2}{\ignorespaces Códigos de \textit {NACK} obtidos no modo ocioso (7 casos)}}{46}{quadro.C.2}%
+\contentsline {quadro}{\numberline {C.3}{\ignorespaces Códigos de \textit {NACK} obtidos no modo de transferência (12 casos)}}{47}{quadro.C.3}%
+\contentsline {quadro}{\numberline {C.4}{\ignorespaces Códigos de \textit {NACK} obtidos no modo de depuração (26 casos)}}{47}{quadro.C.4}%
+\contentsfinish 

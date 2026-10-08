@@ -1,0 +1,119 @@
+% !TeX root = ../main.tex
+\addtocontents{toc}{\protect\let\protect\numberline\protect\apendiceNumberline}
+\chapter{Ensaio de Robustez do Protocolo de Comunicação}
+\label{ape:protocolo}
+\addtocontents{toc}{\protect\let\protect\numberline\protect\numberlineorig}
+
+Este apêndice registra o ensaio de robustez do protocolo de comunicação (caso I2 do Quadro~\ref{qua:testes-integracao}), executado sobre o STM32F767ZI em 7 de outubro de 2026, por meio de um \textit{script} no \textit{host} conectado à porta serial virtual do ST-LINK.
+O \textit{script} estabelece a conexão, leva o dispositivo a cada um dos quatro modos do protocolo --- conexão, ocioso, transferência e depuração (Seção~\ref{sec:protocolo}) ---, envia em cada um pacotes malformados e compara o código de \textit{NACK} recebido com o previsto para a categoria de erro.
+As categorias são: comando inexistente no modo; tamanho do pacote inconsistente com o do comando; CRC16 incorreto; identificador de dispositivo diferente do do alvo; e, para os comandos que a têm, violação de faixa de um campo (carga útil de \texttt{DATA\_PACKET} acima de 256 \textit{bytes}, nível de \textit{debounce} fora de 1 a 10 e 17ª variável na lista de monitoração, que comporta 16).
+Cada categoria de cada comando tem um código de \textit{NACK} próprio, de modo que a resposta identifica sem ambiguidade a condição rejeitada.
+
+Os 52 casos foram rejeitados com o código esperado, e os Quadros~\ref{qua:ape-i2-conexao} a~\ref{qua:ape-i2-depuracao} apresentam os códigos obtidos por modo.
+Uma execução anterior, com uma versão do \textit{firmware} cuja máquina de estados de conexão tratava de modo incorreto os pacotes inválidos, falhou nos sete casos do modo de conexão (Quadro~\ref{qua:defeitos}); a execução apresentada é a posterior à correção.
+
+% ---------------------------------------------------------------------------- %
+\section{Modos de conexão e ocioso}
+\label{sec:ape-i2-conexao}
+
+\begin{quadro}[htb]
+    \centering
+    \small
+    \begin{tabular}{|l|c|c|c|c|}
+        \hline
+        Comando & Tamanho & CRC & Identificador & Outras condições \\
+        \hline
+        Comando inexistente (conexão) & --- & --- & --- & 0x60 \\
+        \hline
+        \texttt{START\_CONNECTION} & 0x61 & 0x62 & 0x63 & --- \\
+        \hline
+        \texttt{VALIDATION} & 0x64 & 0x65 & 0x66 & --- \\
+        \hline
+    \end{tabular}
+
+    \caption{Códigos de \textit{NACK} obtidos no modo de conexão (7 casos)}
+    \label{qua:ape-i2-conexao}
+    \fonte{Elaborado pelo autor (2026).}
+\end{quadro}
+
+\begin{quadro}[htb]
+    \centering
+    \small
+    \begin{tabular}{|l|c|c|c|c|}
+        \hline
+        Comando & Tamanho & CRC & Identificador & Outras condições \\
+        \hline
+        Comando inexistente (ocioso) & --- & --- & --- & 0x00 \\
+        \hline
+        \texttt{START\_TRANSFER} & 0x01 & 0x03 & 0x05 & --- \\
+        \hline
+        \texttt{START\_DEBUG} & 0x02 & 0x04 & 0x06 & --- \\
+        \hline
+    \end{tabular}
+
+    \caption{Códigos de \textit{NACK} obtidos no modo ocioso (7 casos)}
+    \label{qua:ape-i2-ocioso}
+    \fonte{Elaborado pelo autor (2026).}
+\end{quadro}
+
+% ---------------------------------------------------------------------------- %
+\section{Modo de transferência}
+\label{sec:ape-i2-transferencia}
+
+\begin{quadro}[htb]
+    \centering
+    \small
+    \begin{tabular}{|p{4.6cm}|c|c|c|p{3.6cm}|}
+        \hline
+        Comando & Tamanho & CRC & Identificador & Outras condições \\
+        \hline
+        Comando inexistente (transferência) & --- & --- & --- & 0x20 \\
+        \hline
+        \texttt{DATA\_PACKET} & 0x21 & 0x23 & 0x25 & Carga útil acima de 256 \textit{bytes}: 0x27 \\
+        \hline
+        \texttt{STOP\_TRANSFER} & 0x22 & 0x24 & 0x26 & --- \\
+        \hline
+        \texttt{SET\_DEBOUNCE} & 0x2C & 0x2D & 0x2E & Nível 11 (fora de 1 a 10): 0x2F \\
+        \hline
+    \end{tabular}
+
+    \caption{Códigos de \textit{NACK} obtidos no modo de transferência (12 casos)}
+    \label{qua:ape-i2-transferencia}
+    \fonte{Elaborado pelo autor (2026).}
+\end{quadro}
+
+% ---------------------------------------------------------------------------- %
+\section{Modo de depuração}
+\label{sec:ape-i2-depuracao}
+
+\begin{quadro}[htb]
+    \centering
+    \small
+    \begin{tabular}{|p{4.6cm}|c|c|c|p{3.6cm}|}
+        \hline
+        Comando & Tamanho & CRC & Identificador & Outras condições \\
+        \hline
+        Comando inexistente (depuração) & --- & --- & --- & 0x40 \\
+        \hline
+        \texttt{RESUME\_DEBUG} & 0x41 & 0x44 & 0x47 & --- \\
+        \hline
+        \texttt{STOP\_DEBUG} & 0x42 & 0x45 & 0x48 & --- \\
+        \hline
+        \texttt{PAUSE\_DEBUG} & 0x43 & 0x46 & 0x49 & --- \\
+        \hline
+        \texttt{FORCE\_REQ} & 0x4A & 0x4B & 0x4C & --- \\
+        \hline
+        \texttt{PUBLISH\_VAR} & 0x4D & 0x4E & 0x4F & 17ª variável (lista cheia): 0x53 \\
+        \hline
+        \texttt{UNPUBLISH\_VAR} & 0x50 & 0x51 & 0x52 & --- \\
+        \hline
+        \texttt{WRITE\_MEMORY} & 0x54 & 0x55 & 0x56 & --- \\
+        \hline
+        \texttt{WRITE\_DR} & 0x57 & 0x58 & 0x59 & --- \\
+        \hline
+    \end{tabular}
+
+    \caption{Códigos de \textit{NACK} obtidos no modo de depuração (26 casos)}
+    \label{qua:ape-i2-depuracao}
+    \fonte{Elaborado pelo autor (2026).}
+\end{quadro}

@@ -4,8 +4,8 @@
 \label{cap:implementacao}
 
 Os conceitos que sustentam a solução --- Arquitetura de Conjunto de Instruções (\textit{ISA}), Camada de Abstração de \textit{Hardware} (\textit{HAL}), ambiente de execução isolado (\textit{sandbox}) e \textit{Model-Based Design} --- foram apresentados no Capítulo~\ref{cap:fundamentacao}.
-Este capítulo descreve como cada um deles se materializa na implementação: a arquitetura em camadas (Seção~\ref{sec:visao-geral-implementacao}), a plataforma-alvo (Seção~\ref{sec:plataforma-alvo}), a máquina virtual e o conjunto de instruções (Seção~\ref{sec:vm-isa}), o modelo de memória e o ambiente de execução isolado (Seção~\ref{sec:memoria-sandbox}), a camada de abstração de \textit{hardware} (Seção~\ref{sec:hal-implementacao}), o protocolo de comunicação (Seção~\ref{sec:protocolo}), a modelagem em \textit{Simulink}/\textit{Stateflow} (Seção~\ref{sec:stateflow-mbd}) e a estratégia de validação (Seção~\ref{sec:validacao-testes}).
-A especificação completa do conjunto de instruções e os ensaios do bloco de controle PID constam, respectivamente, do \ref{ape:isa} e do \ref{ape:pid}.
+Este capítulo descreve como cada um deles se materializa na implementação: a arquitetura em camadas (Seção~\ref{sec:visao-geral-implementacao}), a plataforma-alvo (Seção~\ref{sec:plataforma-alvo}), a máquina virtual e o conjunto de instruções (Seção~\ref{sec:vm-isa}), o modelo de memória e o ambiente de execução isolado (Seção~\ref{sec:memoria-sandbox}), a camada de abstração de \textit{hardware} (Seção~\ref{sec:hal-implementacao}), o protocolo de comunicação (Seção~\ref{sec:protocolo}), a modelagem em \textit{Simulink}/\textit{Stateflow} (Seção~\ref{sec:stateflow-mbd}), a estratégia de validação (Seção~\ref{sec:validacao-testes}) e os resultados dos ensaios (Seção~\ref{sec:resultados-ensaios}).
+A especificação completa do conjunto de instruções, os ensaios do bloco de controle PID e o registro do ensaio de robustez do protocolo constam, respectivamente, do \ref{ape:isa}, do \ref{ape:pid} e do \ref{ape:protocolo}.
 Cada escolha de projeto é acompanhada de sua justificativa, reunidas no Quadro~\ref{qua:escolhas-projeto}.
 
 \tikzset{
@@ -59,13 +59,13 @@ O Quadro~\ref{qua:recursos} reúne a capacidade dos recursos disponíveis ao pro
         \hline
         Recurso & Quantidade & Observação \\
         \hline
-        Entradas digitais & 10 & Com filtro de \textit{debounce} \\
+        Entradas digitais & 5 & Com filtro de \textit{debounce} \\
         \hline
-        Saídas digitais & 12 & --- \\
+        Saídas digitais & 10 & --- \\
         \hline
-        Entradas analógicas & 8 & Conversor de 12 \textit{bits} \\
+        Entradas analógicas & 3 & Conversor de 12 \textit{bits} \\
         \hline
-        Saídas PWM & 4 & Uma delas analógica pura (0 a 10 V) \\
+        Saídas PWM e analógica & 2 + 1 & Duas saídas PWM e uma saída analógica de 0 a 3,3 V \\
         \hline
         Temporizadores & 32 & TON, TOF e TP; bases de 10 ms a 1 min \\
         \hline
@@ -91,23 +91,23 @@ A implementação tem como alvo o microcontrolador STM32F767ZI, de núcleo \text
 Quatro requisitos da solução justificam essa escolha.
 O primeiro é a aritmética de ponto flutuante: 13 das instruções aritméticas e 6 das de comparação operam sobre \textit{F32}, e a unidade de ponto flutuante do núcleo as executa em \textit{hardware}, com tempo previsível e sem bibliotecas de emulação, o que preserva o determinismo discutido na Seção~\ref{sec:problema-literatura} \cite{liu:2000}.
 O segundo é a memória: o dispositivo oferece até 2 MB de \textit{Flash} e 512 KB de SRAM, incluindo memórias acopladas ao núcleo (128 KB de dados e 16 KB de instruções) destinadas a dados e rotinas críticas de tempo real \cite{st:ds11532}, o que permite alocar os mapas de memória e o laço de varredura em regiões de acesso previsível.
-O terceiro é a cobertura de periféricos: conversores analógico-digitais de 12 \textit{bits}, temporizadores, controladores de DMA, interfaces seriais e unidade de cálculo de CRC atendem a todos os grupos de funções do contrato da camada de abstração (Seção~\ref{sec:hal-implementacao}) \cite{st:ds11532,st:rm0410}.
+O terceiro é a cobertura de periféricos: conversores analógico-digitais de 12 \textit{bits}, temporizadores, controladores de DMA, interfaces seriais atendem a todos os grupos de funções do contrato da camada de abstração (Seção~\ref{sec:hal-implementacao}) \cite{st:ds11532,st:rm0410}.
 O quarto é o ferramental: a placa NUCLEO-F767ZI integra o depurador/gravador ST-LINK, dispensando sonda externa e disponibilizando um canal serial para o \textit{host} \cite{st:um1974}, e a ferramenta \textit{STM32CubeMX} gera a inicialização dos periféricos a partir de uma descrição gráfica.
 Como o desempenho do núcleo é superior ao necessário para o interpretador, espera-se que o tempo de varredura seja determinado pelo tamanho do programa do usuário e não pelo custo de interpretação, hipótese verificada pelos ensaios de desempenho descritos na Seção~\ref{sec:validacao-testes}.
 
 A Figura~\ref{fig:esboco-placa} apresenta o esboço, em blocos, da conexão entre a placa e o circuito de entradas e saídas.
-A atribuição individual de pinos é definida no projeto do circuito e não altera o contrato da camada de abstração.
+A atribuição individual de pinos adotada nos ensaios consta do Quadro~\ref{qua:pinagem} e não altera o contrato da camada de abstração.
 
 \begin{figure}[htb]
     \centering
     \begin{tikzpicture}[x=1cm,y=1cm]
-        \node[bloco, fill=corHW, minimum width=3.6cm, minimum height=34mm] (mcu) at (0,0) {\textbf{NUCLEO-F767ZI}\\STM32F767ZI\\[2pt]GPIO\quad ADC\\TIM (PWM)\\USART + DMA\\CRC};
-        \node[bloco, fill=corCom, minimum width=3.0cm] (di) at (-5.6,1.1) {10 entradas\\digitais};
+        \node[bloco, fill=corHW, minimum width=3.6cm, minimum height=34mm] (mcu) at (0,0) {\textbf{NUCLEO-F767ZI}\\STM32F767ZI\\[2pt]GPIO\quad ADC\\TIM (PWM)\quad DAC\\USART + DMA};
+        \node[bloco, fill=corCom, minimum width=3.0cm] (di) at (-5.6,1.1) {5 entradas\\digitais};
         \node[bloco, fill=corCom, minimum width=2.3cm] (dic) at (-5.6,-0.3) {Condicionamento\\de sinais};
-        \node[bloco, fill=corCom, minimum width=3.0cm] (ai) at (-5.6,-1.7) {8 entradas\\analógicas};
-        \node[bloco, fill=corMem, minimum width=3.0cm] (do) at (5.6,1.5) {12 saídas\\digitais};
-        \node[bloco, fill=corMem, minimum width=3.0cm] (pwm) at (5.6,0.1) {3 saídas PWM};
-        \node[bloco, fill=corMem, minimum width=3.0cm] (ao) at (5.6,-1.4) {1 saída analógica\\0 a 10 V};
+        \node[bloco, fill=corCom, minimum width=3.0cm] (ai) at (-5.6,-1.7) {3 entradas\\analógicas};
+        \node[bloco, fill=corMem, minimum width=3.0cm] (do) at (5.6,1.5) {10 saídas\\digitais};
+        \node[bloco, fill=corMem, minimum width=3.0cm] (pwm) at (5.6,0.1) {2 saídas PWM};
+        \node[bloco, fill=corMem, minimum width=3.0cm] (ao) at (5.6,-1.4) {1 saída analógica\\0 a 3,3 V};
         \node[bloco, fill=white, minimum width=3.6cm] (pc) at (0,-3.4) {Ferramenta de \textit{host}\\(PC)};
         \draw[seta] (di.east) -- ++(0.5,0) |- ([yshift=6mm]mcu.west);
         \draw[seta] (ai.east) -- ++(0.5,0) |- ([yshift=-8mm]mcu.west);
@@ -314,15 +314,15 @@ O Quadro~\ref{qua:hal} associa cada grupo de funções ao periférico do STM32F7
         \hline
         Entradas e saídas digitais; sinalização de erro & \textit{GPIO} \\
         \hline
-        Comunicação serial com o \textit{host} & \textit{USART} com DMA em transmissão e recepção, sobre a porta serial virtual do ST-LINK \\
+        Comunicação serial com o \textit{host} & \textit{USART} com recepção por DMA e detecção de linha ociosa e transmissão bloqueante, sobre a porta serial virtual do ST-LINK \\
         \hline
-        Base de tempo (ms e $\mu$s) e temporizador de varredura & \textit{Timer} de propósito geral \\
+        Base de tempo (ms e $\mu$s) e medição do tempo de varredura & Interrupção do \textit{SysTick} (base de 10 ms) e contador de ciclos do núcleo \\
         \hline
-        Entradas analógicas (8 canais) & ADC de 12 \textit{bits} \\
+        Entradas analógicas (3 canais) & ADC de 12 \textit{bits} com DMA em modo circular \\
         \hline
-        Saídas PWM (4 canais) e saída analógica & \textit{Timer} em modo PWM; filtro externo para a saída de 0 a 10 V \\
+        Saídas PWM (2 canais) e saída analógica & \textit{Timer} em modo PWM; conversor digital-analógico de 12 \textit{bits} (0 a 3,3 V) \\
         \hline
-        Verificação de integridade (CRC16) & Unidade de CRC do microcontrolador ou rotina em \textit{software}, selecionada na inicialização \\
+        Verificação de integridade (CRC16) & Rotina em \textit{software} \\
         \hline
     \end{tabular}
 
@@ -378,8 +378,9 @@ A autenticação do \textit{host} não faz parte do escopo desta monografia; a r
 \label{sec:stateflow-mbd}
 
 A metodologia de \textit{Model-Based Design}, fundamentada na Seção~\ref{sec:fundamentos-solucao}, prescreve um modelo executável do comportamento esperado como referência para validar a implementação \cite{nicolescu:2009}.
-Neste trabalho, os modelos de referência cumprem três papéis: servem de oráculo para os ensaios de lógica de contatos, temporização e contagem (Seção~\ref{sec:validacao-testes}), à maneira do modelo semântico executável empregado por Sadolewski e Trybus \cite{sadolewski:2024}; especificam a máquina de modos do bloco PID; e, em conjunto com modelos de planta, fecham a malha dos ensaios \textit{Hardware-in-the-Loop} do \ref{ape:pid}.
-O procedimento de validação cruzada, análogo ao de Duggan et al. \cite{duggan:2022}, aplica o mesmo vetor de estímulos ao modelo simulado e à máquina virtual em execução, registra a imagem de saídas de cada varredura e compara os dois resultados bit a bit, com as transições de estado --- e não apenas o valor final --- incluídas na comparação.
+Neste trabalho, os modelos em \textit{Simulink}/\textit{Stateflow} cumprem dois papéis: especificam a máquina de modos do bloco PID e, em conjunto com modelos de planta, fecham a malha dos ensaios \textit{Hardware-in-the-Loop} do \ref{ape:pid}.
+O procedimento de validação cruzada, análogo ao de Duggan et al. \cite{duggan:2022}, aplica o mesmo vetor de estímulos ao modelo simulado e à máquina virtual em execução, registra a imagem de saídas de cada varredura e compara os dois resultados, com as transições de estado --- e não apenas o valor final --- incluídas na comparação.
+Nos ensaios sobre o STM32F767ZI (Seção~\ref{sec:validacao-testes}), o papel de modelo semântico executável, como o empregado por Sadolewski e Trybus \cite{sadolewski:2024}, foi exercido por um modelo de referência em \textit{Python}, que reproduz a semântica do conjunto de instruções; a execução dos modelos \textit{Simulink}/\textit{Stateflow} como oráculo da lógica de contatos não foi realizada e consta como sugestão de trabalho futuro (Seção~\ref{sec:futuros}).
 
 A máquina de modos do bloco PID foi escolhida como primeiro artefato de modelagem por estar inteiramente especificada por estados e transições: quatro modos com prioridade estrita, avaliados nesta ordem a cada execução do bloco --- \textsc{Desabilitado}, \textsc{Reset}, \textsc{Manual} e \textsc{Automático} ---, como mostram a Figura~\ref{fig:stateflow-pid} e o Quadro~\ref{qua:estados-pid}.
 
@@ -441,8 +442,8 @@ Os \textbf{testes de desempenho} medem o tempo de varredura e o consumo de memó
 A infraestrutura de teste é composta por quatro elementos.
 Programas de teste são gerados por uma biblioteca de montagem de \textit{bytecode} em \textit{Python}, com uma função por instrução que codifica a palavra-base e as palavras auxiliares, o que dispensa o cálculo manual dos campos.
 \textit{Scripts} no \textit{host} transferem o \textit{bytecode}, forçam valores de entrada e observam a imagem de saídas por meio dos comandos de depuração do protocolo.
-Modelos em \textit{Simulink}/\textit{Stateflow} e cálculos em \textit{MATLAB} fornecem o resultado esperado (oráculo), e diagramas de temporização da própria norma IEC 61131-3 servem de referência para temporizadores, contadores e bordas \cite{iec:2025}.
-Por fim, um instrumento de aquisição analógica (\textit{Analog Discovery 3}) mede as saídas analógicas e fecha a malha nos ensaios \textit{HIL}.
+O resultado esperado (oráculo) provém de tabelas-verdade, de cálculos independentes em \textit{Python} e de um modelo de referência executável, também em \textit{Python}, que reproduz a semântica do conjunto de instruções; diagramas de temporização da própria norma IEC 61131-3 servem de referência para temporizadores, contadores e bordas \cite{iec:2025}.
+Por fim, nos ensaios \textit{HIL} do \ref{ape:pid}, um instrumento de aquisição analógica (\textit{Analog Discovery 3}) mede a saída analógica e fecha a malha; nos ensaios sobre o STM32F767ZI, as entradas e as memórias são forçadas pelos comandos de depuração, e os valores das saídas PWM e analógica são lidos no depurador.
 A Figura~\ref{fig:fluxo-validacao} resume o fluxo de um caso de teste.
 
 \begin{figure}[htb]
@@ -472,8 +473,7 @@ A Figura~\ref{fig:fluxo-validacao} resume o fluxo de um caso de teste.
 
 O critério de aceitação depende do grupo: nas lógicas de contatos e bobinas exige-se igualdade bit a bit da imagem de saídas em todas as varreduras; nos temporizadores admite-se erro de até uma varredura mais a resolução da base de tempo; nas grandezas numéricas comparam-se os resultados com o cálculo do oráculo dentro da tolerância do tipo (exata para \textit{S32}, relativa para \textit{F32}).
 Os Quadros~\ref{qua:testes-logica} a~\ref{qua:testes-integracao} organizam a cobertura pelo repertório de instruções do Quadro~\ref{qua:grupos-instrucoes}, de modo que cada grupo tenha ao menos um caso associado.
-O conjunto completo é conduzido sobre o STM32F767ZI.
-A coluna de situação distingue os casos já executados dos apenas especificados: os resultados dos primeiros constam do \ref{ape:pid} e do registro de ensaios do protocolo, e os demais passam a ser registrados nesses quadros à medida que são executados.
+O conjunto completo foi conduzido sobre o STM32F767ZI, e a coluna de situação registra o estado de cada caso; os resultados constam da Seção~\ref{sec:resultados-ensaios}, do \ref{ape:pid} e do \ref{ape:protocolo}.
 
 \begin{quadro}[htb]
     \centering
@@ -482,15 +482,15 @@ A coluna de situação distingue os casos já executados dos apenas especificado
         \hline
         ID & Cobertura & Procedimento & Oráculo & Situação \\
         \hline
-        L1 & Contatos e lógica booleana: \texttt{LD}, \texttt{LDN}, \texttt{AND}, \texttt{ANDN}, \texttt{OR}, \texttt{ORN}, \texttt{XOR}, \texttt{XORN}, \texttt{NOT} & Tabela-verdade exaustiva com até três entradas & Tabela-verdade (modelo) & Especificado \\
+        L1 & Contatos e lógica booleana: \texttt{LD}, \texttt{LDN}, \texttt{AND}, \texttt{ANDN}, \texttt{OR}, \texttt{ORN}, \texttt{XOR}, \texttt{XORN}, \texttt{NOT} & Tabela-verdade exaustiva com até três entradas & Tabela-verdade & Executado \\
         \hline
-        L2 & Bobinas: \texttt{OUT}, \texttt{SET}, \texttt{RESET}, \texttt{TOGGLE} & Retenção do estado entre varreduras; alternância por borda & Modelo \textit{Stateflow} & Especificado \\
+        L2 & Bobinas: \texttt{OUT}, \texttt{SET}, \texttt{RESET}, \texttt{TOGGLE} & Retenção do estado entre varreduras; alternância por borda & Modelo de referência & Executado \\
         \hline
-        L3 & Bordas: \texttt{LDP}, \texttt{LDF}, \texttt{ANP}, \texttt{ANF}, \texttt{ORP}, \texttt{ORF} & Evento de duração de uma varredura; nível constante não gera evento & Diagrama de tempo & Especificado \\
+        L3 & Bordas: \texttt{LDP}, \texttt{LDF}, \texttt{ANP}, \texttt{ANF}, \texttt{ORP}, \texttt{ORF} & Evento de duração de uma varredura; nível constante não gera evento & Diagrama de tempo & Executado \\
         \hline
-        L4 & Pilhas: \texttt{MPS}, \texttt{MRD}, \texttt{MPP}, \texttt{ANB}, \texttt{ORB} & Ramificações aninhadas até a profundidade máxima da pilha e além dela & Modelo \textit{Stateflow} & Especificado \\
+        L4 & Pilhas: \texttt{MPS}, \texttt{MRD}, \texttt{MPP}, \texttt{ANB}, \texttt{ORB} & Ramificações aninhadas até a profundidade máxima da pilha e além dela & Modelo de referência & Executado \\
         \hline
-        L5 & Lógica de \textit{rung} composta & Selo, intertravamento e partida-parada, combinando L1 a L4 & Modelo \textit{Stateflow} & Especificado \\
+        L5 & Lógica de \textit{rung} composta & Selo, intertravamento e partida-parada, combinando L1 a L4 & Modelo de referência & Executado \\
         \hline
     \end{tabular}
     \caption{Casos de teste de lógica de contatos e bobinas}
@@ -505,15 +505,15 @@ A coluna de situação distingue os casos já executados dos apenas especificado
         \hline
         ID & Cobertura & Procedimento & Oráculo & Situação \\
         \hline
-        T1 & \textit{TON} & Tempo programado constante e por registrador; quatro bases de tempo; \textit{EN} interrompido antes do fim; alteração do tempo programado durante a contagem & Diagrama IEC 61131-3 & Especificado \\
+        T1 & \textit{TON} & Tempo programado constante e por registrador; quatro bases de tempo; \textit{EN} interrompido antes do fim; alteração do tempo programado durante a contagem & Diagrama IEC 61131-3 & Executado \\
         \hline
-        T2 & \textit{TOF} & Idem; religamento durante a contagem & Diagrama IEC 61131-3 & Especificado \\
+        T2 & \textit{TOF} & Idem; religamento durante a contagem & Diagrama IEC 61131-3 & Executado \\
         \hline
-        T3 & \textit{TP} & Pulso de duração fixa; reacionamento durante o pulso ignorado & Diagrama IEC 61131-3 & Especificado \\
+        T3 & \textit{TP} & Pulso de duração fixa; reacionamento durante o pulso ignorado & Diagrama IEC 61131-3 & Executado \\
         \hline
-        C1 & \textit{CTU}, \textit{CTD}, \textit{CTUD} & Contagem por borda de subida; saídas nos limites; valor programado constante e por registrador & Norma IEC 61131-3 & Especificado \\
+        C1 & \textit{CTU}, \textit{CTD}, \textit{CTUD} & Contagem por borda de subida; saídas nos limites; valor programado constante e por registrador & Norma IEC 61131-3 & Executado \\
         \hline
-        C2 & \textit{Reset} e carga (\textit{load}) & Prioridade entre \textit{reset}, carga e contagem; valor negativo & Norma IEC 61131-3 & Especificado \\
+        C2 & \textit{Reset} e carga (\textit{load}) & Prioridade entre \textit{reset}, carga e contagem; valor negativo & Norma IEC 61131-3 & Executado \\
         \hline
     \end{tabular}
     \caption{Casos de teste de temporizadores e contadores}
@@ -528,15 +528,15 @@ A coluna de situação distingue os casos já executados dos apenas especificado
         \hline
         ID & Cobertura & Procedimento & Oráculo & Situação \\
         \hline
-        N1 & Aritmética \textit{S32}: soma, subtração, multiplicação, divisão, módulo, mínimo, máximo, incremento, decremento, negação e valor absoluto & Valores nominais, zero e limites do inteiro de 32 \textit{bits} & Cálculo em \textit{MATLAB} & Especificado \\
+        N1 & Aritmética \textit{S32}: soma, subtração, multiplicação, divisão, módulo, mínimo, máximo, incremento, decremento, negação e valor absoluto & Valores nominais, zero e limites do inteiro de 32 \textit{bits} & Cálculo em \textit{Python} & Executado \\
         \hline
-        N2 & Aritmética \textit{F32} (mesmas operações) & Valores nominais, muito pequenos e muito grandes; tolerância relativa & Cálculo em \textit{MATLAB} & Especificado \\
+        N2 & Aritmética \textit{F32} (mesmas operações) & Valores nominais, muito pequenos e muito grandes; tolerância relativa & Cálculo em \textit{Python} & Executado \\
         \hline
-        N3 & Casos-limite aritméticos & Divisão por zero (resultado nulo), módulo por zero (sem escrita), valor absoluto de \texttt{INT32\_MIN} (saturado), escalonamento com faixa de entrada nula (sem escrita) & Especificação da instrução (\ref{ape:isa}) & Especificado \\
+        N3 & Casos-limite aritméticos & Divisão por zero (resultado nulo), módulo por zero (sem escrita), valor absoluto de \texttt{INT32\_MIN} (saturado), escalonamento com faixa de entrada nula (sem escrita) & Especificação da instrução (\ref{ape:isa}) & Executado \\
         \hline
-        N4 & Comparação \textit{S32} e \textit{F32}: igual, diferente, maior, menor, maior ou igual, menor ou igual & Fronteiras (igualdade, mais e menos uma unidade) & Cálculo em \textit{MATLAB} & Especificado \\
+        N4 & Comparação \textit{S32} e \textit{F32}: igual, diferente, maior, menor, maior ou igual, menor ou igual & Fronteiras (igualdade, mais e menos uma unidade) & Cálculo em \textit{Python} & Executado \\
         \hline
-        N5 & Conversão e escalonamento: \texttt{ITOF}, \texttt{FTOI}, \texttt{SCALE} & Pontos extremos e intermediários da faixa; operando constante e por registrador & Cálculo em \textit{MATLAB} & Especificado \\
+        N5 & Conversão e escalonamento: \texttt{ITOF}, \texttt{FTOI}, \texttt{SCALE} & Pontos extremos e intermediários da faixa; operando constante e por registrador & Cálculo em \textit{Python} & Executado \\
         \hline
     \end{tabular}
     \caption{Casos de teste de blocos numéricos}
@@ -551,13 +551,13 @@ A coluna de situação distingue os casos já executados dos apenas especificado
         \hline
         ID & Cobertura & Procedimento & Oráculo & Situação \\
         \hline
-        A1 & Entradas analógicas, saídas PWM e saída analógica & Erro em $N$ pontos da faixa & Instrumento de medição & Especificado \\
+        A1 & Entradas analógicas, saídas PWM e saída analógica & Erro em $N$ pontos da faixa & Multímetro e cálculo da escala & Executado \\
         \hline
-        B1 & Bloco \textit{RAMP} & \texttt{EN} desligado; borda de subida com valor inicial; subida e descida com taxas distintas; saída no alvo & Modelo \textit{Stateflow} & Especificado \\
+        B1 & Bloco \textit{RAMP} & \texttt{EN} desligado; borda de subida com valor inicial; subida e descida com taxas distintas; saída no alvo & Modelo de referência & Executado \\
         \hline
-        B2 & Bloco PID: sete cenários de unidade e regressão & Modos, transferência sem salto, banda morta, \textit{setpoint} dinâmico (\ref{ape:pid}) & Modelo de referência & Executado \\
+        B2 & Bloco PID: cenários de unidade e regressão & Modos, saturação, banda morta, ação integral e transferência sem salto (também no \ref{ape:pid}) & Modelo de referência & Executado \\
         \hline
-        B3 & Bloco PID em malha fechada (\textit{HIL}) & Cinco arquétipos de planta (\ref{ape:pid}) & Modelo da planta & Executado \\
+        B3 & Bloco PID com entrada analógica real e em malha fechada (\textit{HIL}) & Variável de processo em AI2; cinco arquétipos de planta no \ref{ape:pid} & Cálculo do PID; modelo da planta & Executado (\textit{HIL} na plataforma de desenvolvimento) \\
         \hline
     \end{tabular}
     \caption{Casos de teste de entradas e saídas analógicas e de blocos de controle}
@@ -572,17 +572,17 @@ A coluna de situação distingue os casos já executados dos apenas especificado
         \hline
         ID & Cobertura & Procedimento & Oráculo & Situação \\
         \hline
-        I1 & Transferência de \textit{bytecode} & Programa recebido idêntico ao enviado; execução após a carga & Comparação byte a byte & Especificado \\
+        I1 & Transferência de \textit{bytecode} & Programa recebido idêntico ao enviado; execução após a carga & Comparação byte a byte & Executado \\
         \hline
         I2 & Robustez do protocolo & Comando inválido, tamanho inconsistente, CRC incorreto e identificador de dispositivo inválido, com o \textit{NACK} correto para cada categoria & Código de \textit{NACK} esperado & Executado \\
         \hline
-        I3 & Robustez da máquina virtual & Opcode inválido leva a \textit{trap}; índice fora da faixa não acessa memória externa às regiões & Comportamento especificado & Especificado \\
+        I3 & Robustez da máquina virtual & Opcode inválido leva a \textit{trap}; índice fora da faixa não acessa memória externa às regiões & Comportamento especificado & Executado \\
         \hline
-        P1 & Tempo de varredura & Programas de tamanho crescente; média, máximo e variação & Medição & Especificado \\
+        P1 & Tempo de varredura & Programas de tamanho crescente; média, máximo e variação & Medição & Executado \\
         \hline
-        P2 & Consumo de memória & \textit{Flash} e RAM ocupadas, a partir do relatório de \textit{link} & Medição & Especificado \\
+        P2 & Consumo de memória & \textit{Flash} e RAM ocupadas, a partir do relatório de \textit{link} & Medição & Executado \\
         \hline
-        P3 & Custo por grupo de instruções & Tempo de execução por instrução em cada grupo & Medição & Especificado \\
+        P3 & Custo por grupo de instruções & Tempo de execução por instrução em cada grupo & Medição & Executado \\
         \hline
     \end{tabular}
     \caption{Casos de teste de integração, robustez e desempenho}
@@ -592,10 +592,323 @@ A coluna de situação distingue os casos já executados dos apenas especificado
 
 
 %% ------------------------------------------------------------------------- %%
+\section{Resultados dos Ensaios}
+\label{sec:resultados-ensaios}
+
+Esta seção apresenta os resultados da execução do plano de testes da Seção~\ref{sec:validacao-testes} sobre o STM32F767ZI.
+Os 25 casos do catálogo foram conduzidos em 28 roteiros --- o caso L4 foi dividido em três (ramificações e pilhas de 16 e de 17 níveis) e o caso I3 em dois (opcode inválido e índice fora da faixa) ---, num total de 236 passos, dos quais 220 são verificações funcionais e 16 são medições de desempenho.
+Das 220 verificações, 219 foram registradas como conformes ao resultado esperado; o passo restante, a primeira conferência do ensaio do bloco PID com entrada analógica (saída de controle no limite inferior com o bloco desabilitado), não foi registrado.
+
+Cada roteiro é uma sequência de passos.
+Em cada passo aplica-se um estímulo --- forçamento de entradas digitais, escrita em registradores e memórias auxiliares, ou uma tensão na entrada analógica --- e confere-se, na ferramenta de depuração, o valor das saídas e das variáveis observadas com o esperado.
+Os forçamentos de entrada são aplicados após o filtro de \textit{debounce}, de modo que o resultado independe do tempo de acionamento das chaves.
+Os valores esperados foram calculados antes dos ensaios, a partir de tabelas-verdade, de aritmética independente em \textit{Python} e de um modelo de referência executável, também em \textit{Python}, que reproduz a semântica do conjunto de instruções descrita no \ref{ape:isa}.
+O modelo não substitui o ensaio no \textit{hardware}: ele próprio foi conferido contra a tabela-verdade do caso L1 executada na placa, e a comparação com a máquina virtual embarcada é feita ao final de cada passo, com as transições de estado cobertas pela sequência dos passos.
+
+%% ------------------------------------------------------------------------- %%
+\subsection{Bancada de ensaio}
+\label{sub:bancada-ensaio}
+
+Os ensaios usaram a placa NUCLEO-F767ZI acoplada a uma placa externa de entradas e saídas, ligada ao computador pelo cabo USB do ST-LINK, que provê a gravação, a depuração e a porta serial virtual do protocolo (115200 \textit{baud}).
+A placa externa reúne cinco chaves, ligadas às entradas digitais I0 a I4, dez LEDs, ligados às saídas Q0 a Q9, e um LED de sinalização de erro da máquina virtual; uma peça impressa em 3D acopla a placa externa à NUCLEO.
+As entradas digitais usam o resistor de \textit{pull-down} interno do microcontrolador e são acionadas em nível alto.
+Das três entradas analógicas implementadas, apenas AI2 foi ligada, a uma fonte de tensão ajustável conferida com multímetro.
+Os sinais das saídas PWM e da saída analógica não foram medidos eletricamente: seus valores foram lidos na lista de monitoração da ferramenta de depuração.
+A Figura~\ref{fig:bancada} apresenta o arranjo e o Quadro~\ref{qua:pinagem} a alocação dos pinos.
+
+\begin{figure}[htb]
+    \centering
+    \begin{tikzpicture}[x=1cm,y=1cm]
+        \node[bloco, fill=corHW, minimum width=3.4cm, minimum height=30mm] (mcu) at (0,0) {\textbf{NUCLEO-F767ZI}\\STM32F767ZI\\[2pt]GPIO\quad ADC\\TIM (PWM)\quad DAC\\USART + DMA};
+        \node[bloco, fill=corCom, minimum width=3.2cm] (ch) at (-5.8,1.0) {5 chaves\\(I0 a I4)};
+        \node[bloco, fill=corCom, minimum width=3.2cm] (ai) at (-5.8,-1.2) {Fonte ajustável\\(AI2, PC0)};
+        \node[bloco, fill=corMem, minimum width=3.2cm] (led) at (5.8,1.5) {10 LEDs\\(Q0 a Q9)};
+        \node[bloco, fill=corErr, minimum width=3.2cm] (err) at (5.8,0.1) {LED de erro\\da VM (PB8)};
+        \node[bloco, fill=corMem, minimum width=3.2cm] (pwm) at (5.8,-1.4) {PWM e saída\\analógica (depurador)};
+        \node[bloco, fill=white, minimum width=3.4cm] (pc) at (0,-3.4) {Computador:\\ferramenta de \textit{host}};
+        \draw[seta] (ch.east) -- ++(0.5,0) |- ([yshift=6mm]mcu.west);
+        \draw[seta] (ai.east) -- ++(0.5,0) |- ([yshift=-6mm]mcu.west);
+        \draw[seta] ([yshift=8mm]mcu.east) -- ++(0.5,0) |- (led.west);
+        \draw[seta] (mcu.east) -- ++(0.5,0) |- (err.west);
+        \draw[seta] ([yshift=-8mm]mcu.east) -- ++(0.5,0) |- (pwm.west);
+        \draw[seta, <->] (mcu.south) -- node[rotulo, right] {USB: ST-LINK (gravação, depuração e porta serial)} (pc.north);
+    \end{tikzpicture}
+    \caption{Bancada de ensaio: placa NUCLEO-F767ZI, placa externa de chaves e LEDs e computador}
+    \label{fig:bancada}
+
+    \fonte{Elaborado pelo autor (2026).}
+\end{figure}
+
+\begin{quadro}[htb]
+    \centering
+    \small
+    \begin{tabular}{|p{4.4cm}|p{4.6cm}|p{5.2cm}|}
+        \hline
+        Recurso & Pino(s) & Observação \\
+        \hline
+        Entradas digitais I0 a I4 & PD7, PD6, PD5, PD4 e PD3 & Chaves; \textit{pull-down} interno, ativas em nível alto \\
+        \hline
+        Saídas digitais Q0 a Q9 & PG9, PG14, PF15, PE13, PF14, PE11, PE9, PF13, PF12 e PD15 & LEDs indicadores \\
+        \hline
+        Entrada analógica AI2 & PC0 (ADC3, canal 10) & Única ligada; AI1 (PA3) e AI3 (PC3) disponíveis \\
+        \hline
+        Saídas PWM & PB10 e PB11 (TIM2) & Lidas no depurador \\
+        \hline
+        Saída analógica & PA5 (DAC1, canal 2) & 0 a 3,3 V; lida no depurador \\
+        \hline
+        Sinalização de erro da VM & PB8 (espelhada no LED LD3 da placa) & Ativa em nível alto; pisca quando a máquina virtual entra em estado de erro \\
+        \hline
+        Comunicação com o \textit{host} & PD8 e PD9 (USART3) & Porta serial virtual do ST-LINK \\
+        \hline
+    \end{tabular}
+
+    \caption{Alocação dos pinos da placa-alvo usados nos ensaios}
+    \label{qua:pinagem}
+    \fonte{Elaborado pelo autor (2026), com base em \cite{st:um1974}.}
+\end{quadro}
+
+%% ------------------------------------------------------------------------- %%
+\subsection{Resultados funcionais}
+\label{sub:resultados-funcionais}
+
+As Tabelas~\ref{tab:resultados-logica} e~\ref{tab:resultados-numerico} resumem, por caso, os passos executados e os conformes.
+
+\begin{table}[htb]
+    \centering
+    \caption{Passos executados e conformes: lógica, temporização e contagem}
+    \label{tab:resultados-logica}
+    \begin{tabular}{p{8.2cm}cc}
+        \hline
+        Caso & Passos & Conformes \\
+        \hline
+        L1 --- Contatos e lógica booleana & 8 & 8 \\
+        L2 --- Bobinas (\texttt{OUT}, \texttt{SET}, \texttt{RESET}, \texttt{TOGGLE}) & 17 & 17 \\
+        L3 --- Bordas & 11 & 11 \\
+        L4 --- Pilhas (ramificações, 16 e 17 níveis) & 23 & 23 \\
+        L5 --- \textit{Rung} composta & 17 & 17 \\
+        T1 --- \textit{TON} & 15 & 15 \\
+        T2 --- \textit{TOF} & 15 & 15 \\
+        T3 --- \textit{TP} & 14 & 14 \\
+        C1 --- \textit{CTU}, \textit{CTD} e \textit{CTUD} & 8 & 8 \\
+        C2 --- \textit{Reset}, carga e valor negativo & 10 & 10 \\
+        \hline
+        Total & 138 & 138 \\
+        \hline
+    \end{tabular}
+    \vspace{14pt}
+    \fonte{Elaborado pelo autor (2026).}
+\end{table}
+
+\begin{table}[htb]
+    \centering
+    \caption{Passos executados e conformes: numéricos, analógicos, controle e integração}
+    \label{tab:resultados-numerico}
+    \begin{tabular}{p{8.2cm}cc}
+        \hline
+        Caso & Passos & Conformes \\
+        \hline
+        N1 --- Aritmética \textit{S32} & 8 & 8 \\
+        N2 --- Aritmética \textit{F32} & 8 & 8 \\
+        N3 --- Casos-limite aritméticos & 4 & 4 \\
+        N4 --- Comparações \textit{S32} e \textit{F32} & 8 & 8 \\
+        N5 --- Conversão e escalonamento & 8 & 8 \\
+        A1 --- Entrada analógica, PWM e saída analógica & 7 & 7 \\
+        B1 --- Bloco \textit{RAMP} & 9 & 9 \\
+        B2 --- Bloco PID (unidade) & 11 & 11 \\
+        B3 --- Bloco PID com entrada analógica & 6 & 5 \\
+        I1 --- Transferência de \textit{bytecode} & 2 & 2 \\
+        I2 --- Robustez do protocolo (52 casos de NACK) & 4 & 4 \\
+        I3 --- Robustez da máquina virtual & 7 & 7 \\
+        \hline
+        Total & 82 & 81 \\
+        \hline
+    \end{tabular}
+    \vspace{14pt}
+    \fonte{Elaborado pelo autor (2026).}
+\end{table}
+
+Na lógica de contatos, as oito combinações de três entradas do caso L1 reproduziram a tabela-verdade nas dez saídas, e as dezesseis combinações de quatro entradas do caso L4 reproduziram os valores esperados das instruções \texttt{MPS}, \texttt{MRD}, \texttt{MPP}, \texttt{ANB} e \texttt{ORB}, inclusive nas ramificações aninhadas.
+No caso L2, \texttt{SET} e \texttt{RESET} retiveram o estado entre varreduras; o \texttt{RESET} prevaleceu sobre o \texttt{SET} na mesma varredura, por estar posicionado depois dele no programa; e o \texttt{TOGGLE} inverteu a saída e a memória apenas na borda de subida, sem repetir a inversão com a entrada mantida.
+No caso L3, cada instrução de borda gerou um evento de duração de uma varredura, contado uma única vez, e o nível constante, mantido por um segundo, não gerou evento.
+O caso L5 combinou selo, intertravamento entre dois motores e \texttt{SET}/\texttt{RESET} sem divergência.
+No limite da pilha lógica, com 16 níveis a varredura se completou; com 17 níveis, ela foi interrompida no ponto do excesso: a \textit{rung} anterior continuou a ser atualizada, a posterior nunca foi executada e o sinalizador de erro não foi acionado.
+Esse comportamento, definido pelo \textit{firmware}, foi incorporado ao \ref{ape:isa}.
+
+Os temporizadores \textit{TON}, \textit{TOF} e \textit{TP} foram ensaiados nas quatro bases de tempo (10 ms, 100 ms, 1 s e 1 min), com tempo programado constante e fornecido por registrador.
+Em cada passo, o tempo decorrido (\texttt{ET}) lido na lista de monitoração foi conferido nos instantes previstos no roteiro --- por exemplo, \texttt{ET} igual a 2, 25 e 250 unidades nas bases de 1 s, 100 ms e 10 ms, 2,5 s após o acionamento --- e as transições de \texttt{Q} ocorreram entre a conferência anterior e a posterior ao tempo programado.
+A interrupção de \texttt{EN} antes do fim zerou a contagem sem acionar a saída; no \textit{TOF}, o religamento durante a contagem manteve \texttt{Q} e zerou o tempo decorrido; no \textit{TP}, o reacionamento durante o pulso foi ignorado; e, no \textit{TON}, o aumento do tempo programado com a saída já acionada a desligou e retomou a contagem até o novo valor, enquanto a redução do tempo programado abaixo do decorrido manteve a saída acionada.
+Os contadores contaram somente em borda de subida, com as saídas \texttt{QU} e \texttt{QD} nos limites e com valor programado constante, por registrador e negativo; o \textit{reset} prevaleceu sobre a carga e a contagem no \textit{CTUD}, e a carga prevaleceu sobre a contagem no \textit{CTD}.
+
+Nos blocos numéricos, os oito casos de cada um dos ensaios N1 e N2 cobriram as onze operações aritméticas em \textit{S32} e \textit{F32}, com valores nominais, nulos, negativos e próximos dos limites do tipo (de $-2147483647$ a $2147483646$ em \textit{S32} e de $10^{-15}$ a $10^{19}$ em \textit{F32}).
+Os resultados \textit{S32} coincidiram exatamente com o cálculo, e os \textit{F32} ficaram dentro da tolerância relativa de $10^{-6}$.
+O caso N3 confirmou os casos-limite: a divisão por zero resultou em zero; o módulo por zero e o escalonamento com faixa de entrada nula não escreveram no destino; e o valor absoluto de \texttt{INT32\_MIN} saturou em \texttt{INT32\_MAX}.
+O caso N4 verificou as seis comparações em \textit{S32} e \textit{F32} nas fronteiras de igualdade e de uma unidade de menor precisão do tipo, e o caso N5 as conversões e o escalonamento, com saturação nos limites da faixa de saída.
+
+A entrada analógica AI2 foi ensaiada em seis tensões entre 0 e 3,3 V (0; 0,33; 0,825; 1,65; 2,475 e 3,3 V), conferidas com multímetro.
+O valor bruto lido ficou dentro da tolerância de 20 contagens (0,5\% da escala de 4095) em todos os pontos, e os valores derivados --- percentual, tensão, \textit{duty} do PWM1 (limitado a 0,2\% e 99,9\%) e tensão da saída analógica --- foram os esperados da escala programada; o PWM2 permaneceu nos valores fixos programados (50\% e 100 Hz).
+Como os sinais elétricos de PWM e da saída analógica não foram medidos, esses resultados atestam o valor calculado pela máquina virtual e entregue à camada de abstração, e não a forma de onda no pino.
+No bloco \textit{RAMP}, a saída assumiu o valor inicial na habilitação, subiu até o alvo à taxa programada de subida, desceu à taxa de descida e foi a zero com o bloco desabilitado, a menos de uma unidade das trajetórias esperadas.
+No bloco PID, os onze passos do caso B2 cobriram os modos (desabilitado, automático, manual e \textit{reset}), a saturação nos dois limites com os sinalizadores correspondentes, a banda morta, a ação integral e a transferência entre manual e automático sem salto.
+O caso B3, com a variável de processo lida da entrada analógica real, conferiu cinco de seis passos: saída de controle coerente com a soma da parcela proporcional e da integral, saturação em zero e \textit{reset}.
+A malha fechada com planta simulada (\textit{HIL}) foi executada na plataforma de desenvolvimento do firmware e consta do \ref{ape:pid}; sua repetição no STM32F767ZI não foi realizada.
+
+%% ------------------------------------------------------------------------- %%
+\subsection{Robustez do protocolo e da máquina virtual}
+\label{sub:resultados-robustez}
+
+No caso I1, o programa de 4096 bytes, tamanho máximo suportado, foi transferido em 16 pacotes de 256 bytes e o conteúdo gravado na \textit{Flash} foi comparado byte a byte com o enviado, sem divergência, e executou normalmente.
+No caso I2, um \textit{script} automatizado exercitou os quatro modos do protocolo com 52 pacotes malformados --- comando inexistente, tamanho inconsistente, CRC incorreto e identificador de dispositivo inválido, além de carga útil acima de 256 bytes, nível de \textit{debounce} 11 e 17ª variável da lista de monitoração ---, e em todos o dispositivo respondeu com o \textit{NACK} de código esperado, como resume o Quadro~\ref{qua:resultados-i2}; o detalhamento consta do \ref{ape:protocolo}.
+A primeira execução desse ensaio falhou, com uma versão anterior do \textit{firmware}, por um defeito na máquina de estados de conexão (Quadro~\ref{qua:defeitos}).
+No caso I3, um opcode inválido levou a máquina virtual ao estado de erro --- sem execução do programa e com a sinalização de erro piscando ---, e a gravação de um programa válido restabeleceu a operação; os acessos a instâncias inexistentes de temporizador e contador (índice 40) e de entrada analógica (índice 9) não provocaram falha, não afetaram as demais \textit{rungs} e resultaram em valor nulo.
+
+\begin{quadro}[htb]
+    \centering
+    \small
+    \begin{tabular}{|l|p{5.6cm}|p{4.8cm}|c|}
+        \hline
+        Modo & Casos exercitados & Códigos de \textit{NACK} obtidos & Casos \\
+        \hline
+        Conexão & Comando inexistente; \texttt{START\_CONNECTION} e \texttt{VALIDATION} com tamanho, CRC e identificador inválidos & 0x60; 0x61 a 0x63; 0x64 a 0x66 & 7/7 \\
+        \hline
+        Ocioso & Comando inexistente; \texttt{START\_TRANSFER} e \texttt{START\_DEBUG} com tamanho, CRC e identificador inválidos & 0x00; 0x01 a 0x06 & 7/7 \\
+        \hline
+        Transferência & Comando inexistente; \texttt{DATA\_PACKET} (inclui carga útil acima de 256 bytes), \texttt{STOP\_TRANSFER} e \texttt{SET\_DEBOUNCE} (inclui nível 11) & 0x20 a 0x27; 0x2C a 0x2F & 12/12 \\
+        \hline
+        Depuração & Comando inexistente; \texttt{RESUME\_DEBUG}, \texttt{STOP\_DEBUG}, \texttt{PAUSE\_DEBUG}, \texttt{FORCE\_REQ}, \texttt{PUBLISH\_VAR}, \texttt{UNPUBLISH\_VAR}, \texttt{WRITE\_MEMORY} e \texttt{WRITE\_DR}; 17ª variável & 0x40 a 0x59 & 26/26 \\
+        \hline
+    \end{tabular}
+
+    \caption{Resultado do ensaio de robustez do protocolo (caso I2)}
+    \label{qua:resultados-i2}
+    \fonte{Elaborado pelo autor (2026).}
+\end{quadro}
+
+%% ------------------------------------------------------------------------- %%
+\subsection{Desempenho}
+\label{sub:resultados-desempenho}
+
+Os ensaios de desempenho foram executados com o \textit{firmware} na configuração de depuração do ambiente de desenvolvimento: sem otimização do compilador, sem cache de instrução habilitado e com a \textit{Flash} a 7 estados de espera, o necessário a 216 MHz \cite{st:rm0410}.
+O tempo de varredura (Tabela~\ref{tab:resultados-p1}) foi lido no valor de \textit{Tempo de Scan} da ferramenta de depuração, obtido do contador de ciclos do núcleo; o programa vazio leva 43~$\mu$s.
+O mínimo corresponde às entradas estáveis e o máximo, ao observado durante o acionamento das chaves.
+
+\begin{table}[htb]
+    \centering
+    \caption{Tempo de varredura em função do tamanho do programa}
+    \label{tab:resultados-p1}
+    \begin{tabular}{ccccc}
+        \hline
+        \textit{Rungs} & Tamanho (bytes) & Mínimo ($\mu$s) & Máximo ($\mu$s) & Mínimo por \textit{rung} ($\mu$s) \\
+        \hline
+        10 & 204 & 145 & 625 & 14,5 \\
+        50 & 1004 & 1924 & 2500 & 38,5 \\
+        100 & 2004 & 3806 & 4900 & 38,1 \\
+        200 & 4004 & 7500 & 9400 & 37,5 \\
+        \hline
+    \end{tabular}
+    \vspace{14pt}
+    \fonte{Elaborado pelo autor (2026).}
+\end{table}
+
+Cada \textit{rung} do programa de ensaio tem cinco instruções (\texttt{SOR}, \texttt{LD}, \texttt{AND}, \texttt{ANDN} e \texttt{OUT}).
+O ajuste linear aos programas de 50 a 200 \textit{rungs} resulta em cerca de $77 + 37{,}1\,n$~$\mu$s, com $n$ o número de \textit{rungs}: o tempo de varredura cresce linearmente com o tamanho do programa, como previsto, e o maior programa suportado (4096 bytes, cerca de 204 \textit{rungs}) leva de 7,5 a 9,4 ms por varredura.
+O programa de 10 \textit{rungs} fica abaixo da reta (145~$\mu$s contra cerca de 450~$\mu$s previstos), o que os dados coletados não explicam.
+A razão entre o máximo e o mínimo é de 1,25 a 1,30 nos programas de 50 a 200 \textit{rungs}.
+
+A Tabela~\ref{tab:resultados-p2} apresenta a ocupação de memória, lida no analisador de compilação do ambiente de desenvolvimento, na mesma configuração.
+
+\begin{table}[htb]
+    \centering
+    \caption{Ocupação de memória do \textit{firmware}}
+    \label{tab:resultados-p2}
+    \begin{tabular}{lccc}
+        \hline
+        Memória & Usada (KB) & Capacidade & Ocupação (\%) \\
+        \hline
+        \textit{Flash} & 76,67 & 2 MB & 3,74 \\
+        RAM & 15,6 & 512 KB & 3,05 \\
+        \hline
+    \end{tabular}
+    \vspace{14pt}
+    \fonte{Elaborado pelo autor (2026).}
+\end{table}
+
+O custo por grupo de instruções (Tabela~\ref{tab:resultados-p3}) foi obtido por diferença: o tempo de varredura de programas com $N$ blocos repetidos de um mesmo grupo, descontado o do programa vazio ($T_0 = 43$~$\mu$s) e dividido por $N$, dá o custo bruto por bloco.
+Como cada bloco contém uma instrução \texttt{SOR} e uma \texttt{LD}, o custo desse par foi medido separadamente, com um programa de 100 blocos só com as duas instruções (1325~$\mu$s), resultando em 12,82~$\mu$s por par, e excluído do custo líquido.
+O custo líquido por instrução divide o líquido do bloco pelo número $k$ de instruções do grupo no bloco, sem \texttt{SOR} e \texttt{LD}; no bloco do PID, $k = 12$ (\texttt{ST} de habilitação, dez \texttt{STW} e a instrução \texttt{PID}), e no do \textit{RAMP}, $k = 7$.
+
+\begin{table}[htb]
+    \centering
+    \caption{Custo por grupo de instruções}
+    \label{tab:resultados-p3}
+    \small
+    \begin{tabular}{p{3.0cm}cccccc}
+        \hline
+        Grupo & $N$ & $T$ ($\mu$s) & Bruto ($\mu$s/bloco) & Líquido ($\mu$s/bloco) & $k$ & Líquido ($\mu$s/instr.) \\
+        \hline
+        Lógica (\texttt{AND}, \texttt{OUT}) & 100 & 3752 & 37,09 & 24,27 & 2 & 12,14 \\
+        \textit{TON} & 30 & 766 & 24,10 & 11,28 & 1 & 11,28 \\
+        \textit{CTU} (\texttt{ST}, \texttt{COUNT}) & 30 & 1332 & 42,97 & 30,15 & 2 & 15,07 \\
+        Aritmética \textit{S32} (\texttt{ADD}) & 100 & 3149 & 31,06 & 18,24 & 2 & 9,12 \\
+        Aritmética \textit{F32} (\texttt{MUL}) & 100 & 3155 & 31,12 & 18,30 & 2 & 9,15 \\
+        Comparação (\texttt{GRT}) & 100 & 4358 & 43,15 & 30,33 & 3 & 10,11 \\
+        \texttt{SCALE} & 50 & 1372 & 26,58 & 13,76 & 1 & 13,76 \\
+        PID completo & 16 & 2563 & 157,50 & 144,68 & 12 & 12,06 \\
+        \textit{RAMP} completo & 16 & 1369 & 82,88 & 70,06 & 7 & 10,01 \\
+        \hline
+    \end{tabular}
+    \vspace{14pt}
+    \fonte{Elaborado pelo autor (2026).}
+\end{table}
+
+%% ------------------------------------------------------------------------- %%
+\subsection{Discussão}
+\label{sub:discussao-resultados}
+
+Todos os casos do catálogo foram executados sobre o STM32F767ZI, e os resultados funcionais confirmam o comportamento especificado para a lógica de contatos, temporização, contagem, aritmética, escalonamento e blocos de controle, além da robustez do protocolo e da máquina virtual diante de entradas inválidas.
+Os ensaios cumpriram também o papel de detecção de defeitos (Quadro~\ref{qua:defeitos}): quatro defeitos de implementação e três divergências de especificação foram revelados por casos de teste e corrigidos, e três deles --- o CRC encadeado, o tratamento do pacote em mais de um bloco e a máquina de estados de conexão --- só apareceram com programas maiores que um pacote ou com pacotes malformados, não com os casos funcionais mínimos.
+
+\begin{quadro}[htb]
+    \centering
+    \small
+    \begin{tabular}{|p{3.6cm}|p{5.4cm}|p{5.2cm}|}
+        \hline
+        Defeito & Manifestação no ensaio & Correção \\
+        \hline
+        Recepção serial por DMA & O evento de meia transferência do \textit{buffer} era tratado como fim de rajada e reentregava os primeiros 256 bytes; a gravação de programas com pacote acima de 256 bytes ficava sem resposta & Entrega somente dos bytes novos e rearme ao fim da transferência \\
+        \hline
+        CRC encadeado & A rotina em \textit{software} ignorava o valor inicial; o CRC gravado para programas em mais de um pacote ficava errado, a carga rejeitava o programa (caso L3, 348 bytes) e a máquina virtual entrava em erro & Valor inicial passou a ser respeitado \\
+        \hline
+        Máquina de estados de conexão & Ramos de erro usavam estados e códigos de \textit{NACK} de outros modos; um pacote \texttt{VALIDATION} inválido deixava o dispositivo sem resposta (caso I2) & Estados e códigos 0x60 a 0x69 corrigidos; verificação de que nenhum outro ramo usa estado de outro modo \\
+        \hline
+        Contador de ciclos do núcleo & Sem a chave de desbloqueio do \textit{Cortex-M7}, o tempo de varredura lido era nulo & Desbloqueio na inicialização \\
+        \hline
+        Especificação do conjunto de instruções & Pilha cheia, faixa de \texttt{ANALOG\_OUT} e módulo em \textit{F32} diferiam do \textit{firmware} (casos L4, A1 e N2) & \ref{ape:isa} corrigido \\
+        \hline
+    \end{tabular}
+
+    \caption{Defeitos e divergências identificados durante a validação e sua correção}
+    \label{qua:defeitos}
+    \fonte{Elaborado pelo autor (2026).}
+\end{quadro}
+
+O uso de memória (3,74\% da \textit{Flash} e 3,05\% da RAM) deixa margem ampla para programas e recursos adicionais.
+O tempo de varredura, cerca de 37~$\mu$s por \textit{rung} de cinco instruções, equivale a 9 a 15~$\mu$s por instrução (da ordem de 2000 a 3200 ciclos a 216 MHz) e é quase uniforme entre os grupos --- a aritmética \textit{F32} custa o mesmo que a \textit{S32}, consistente com a unidade de ponto flutuante em \textit{hardware}, e o par \texttt{SOR} e \texttt{LD} responde por cerca de 35\% do custo bruto de um bloco de lógica.
+Essa uniformidade indica que o tempo é dominado pelo custo fixo de despacho e acesso aos mapas de memória na configuração ensaiada, e não pela operação executada; atribui-se a magnitude absoluta à configuração de depuração, sem otimização e com o código na \textit{Flash} sem cache de instrução, hipótese que não foi verificada neste trabalho.
+Ainda assim, o maior programa suportado leva menos de 10 ms por varredura, compatível com ciclos usuais de CLPs de pequeno porte.
+
+Os resultados têm limitações que delimitam o que se pode afirmar.
+Primeiro, o resultado esperado vem de tabelas-verdade, de cálculo independente e de um modelo de referência executável em \textit{Python} que reproduz a semântica do conjunto de instruções, e não da execução dos modelos \textit{Simulink}/\textit{Stateflow} da Seção~\ref{sec:stateflow-mbd}, que neste trabalho especificam a máquina de modos do PID; a validação cruzada contra esses modelos não foi realizada.
+Segundo, a bancada implementa cinco entradas e dez saídas digitais e uma única entrada analógica ligada, e os sinais elétricos de PWM e da saída analógica não foram medidos, apenas lidos no depurador; a saída analógica opera de 0 a 3,3 V, sem o estágio de condicionamento para 0 a 10 V.
+Terceiro, a malha fechada com planta simulada não foi repetida no STM32F767ZI.
+Quarto, as medições de desempenho cobrem uma única configuração de compilação, e o caso de 10 \textit{rungs} não segue o comportamento linear dos demais.
+Essas limitações orientam as sugestões do Capítulo~\ref{cap:finais}.
+
+%% ------------------------------------------------------------------------- %%
 \section{Síntese}
 \label{sec:sintese-implementacao}
 
-Este capítulo apresentou a implementação da solução cujos fundamentos foram estabelecidos no Capítulo~\ref{cap:fundamentacao}: um motor de execução \textit{fetch-decode-execute} com palavra-base de instrução de 32 \textit{bits} e despacho em tempo constante; blocos funcionais com estado segregado em mapas de memória de acesso validado; uma camada de abstração que confina ao contrato de um único módulo toda a dependência do STM32F767ZI; um protocolo com enquadramento COBS e verificação CRC16; modelos de referência em \textit{Simulink}/\textit{Stateflow}; e uma estratégia de validação em quatro níveis, com cobertura de todos os grupos do repertório de instruções.
+Este capítulo apresentou a implementação da solução cujos fundamentos foram estabelecidos no Capítulo~\ref{cap:fundamentacao}: um motor de execução \textit{fetch-decode-execute} com palavra-base de instrução de 32 \textit{bits} e despacho em tempo constante; blocos funcionais com estado segregado em mapas de memória de acesso validado; uma camada de abstração que confina ao contrato de um único módulo toda a dependência do STM32F767ZI; um protocolo com enquadramento COBS e verificação CRC16; especificações em \textit{Simulink}/\textit{Stateflow} da máquina de modos do bloco PID; e uma estratégia de validação em quatro níveis, com cobertura de todos os grupos do repertório de instruções.
+A execução dos casos de teste sobre o STM32F767ZI (Seção~\ref{sec:resultados-ensaios}) confirmou o comportamento especificado em 219 das 220 verificações funcionais, rejeitou os 52 pacotes malformados com o código de \textit{NACK} esperado e mediu cerca de 37~$\mu$s por \textit{rung} de cinco instruções na configuração de depuração, além de revelar e permitir corrigir quatro defeitos de implementação.
 As escolhas de projeto e suas justificativas estão reunidas no Quadro~\ref{qua:escolhas-projeto}.
 
 \begin{quadro}[htb]

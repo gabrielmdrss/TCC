@@ -4,9 +4,9 @@
 \label{ape:pid}
 \addtocontents{toc}{\protect\let\protect\numberline\protect\numberlineorig}
 
-Este apêndice registra os ensaios já realizados sobre o bloco PID descrito na Seção~\ref{sub:blocos-funcionais} e cuja máquina de modos é especificada na Seção~\ref{sec:stateflow-mbd}: testes de unidade e regressão e ensaios em malha fechada com \textit{Hardware-in-the-Loop} (\textit{HIL}).
-Ambos foram executados na plataforma de desenvolvimento do firmware.
-Como o motor de execução da máquina virtual não acessa periféricos fora do contrato da camada de abstração (Seção~\ref{sec:hal-implementacao}), o comportamento validado independe do microcontrolador; a repetição dos ensaios no STM32F767ZI será registrada neste apêndice quando executada.
+Este apêndice registra os ensaios realizados sobre o bloco PID descrito na Seção~\ref{sub:blocos-funcionais} e cuja máquina de modos é especificada na Seção~\ref{sec:stateflow-mbd}: testes de unidade e regressão e ensaios em malha fechada com \textit{Hardware-in-the-Loop} (\textit{HIL}).
+Ambos foram executados na plataforma de desenvolvimento do firmware, e uma parte deles foi repetida no STM32F767ZI (Seção~\ref{sec:ape-pid-stm32}).
+Como o motor de execução da máquina virtual não acessa periféricos fora do contrato da camada de abstração (Seção~\ref{sec:hal-implementacao}), o comportamento validado independe do microcontrolador; a repetição dos ensaios de unidade e do ensaio com entrada analógica real no STM32F767ZI consta da Seção~\ref{sec:ape-pid-stm32}; a malha fechada com planta simulada não foi repetida nessa plataforma.
 
 % ---------------------------------------------------------------------------- %
 \section{Testes de unidade e regressão}
@@ -102,3 +102,13 @@ O arquétipo de atraso de transporte (planta 3) apresentou o pior caso da bateri
 O resultado é esperado teoricamente, já que o atraso de transporte reduz a margem de fase mais severamente do que a lentidão isolada (planta 2) ou a ausência de autorregulação (planta 4), mas a sua magnitude só foi conhecida pelo ensaio.
 Aplicou-se então um reajuste de ganhos a essa planta, com base na heurística clássica $T_i \approx \tau + 2L$ para processos com atraso de transporte: $K_p = 0{,}4$ e $K_i = 0{,}05$ foram alterados para $K_p = 0{,}3$ e $K_i = 0{,}02$, o que reduziu o \textit{overshoot} de 47,2\% para 0,10\% e o tempo de acomodação de 80,1~s (sem convergência plena na janela) para 16,0~s.
 O caso evidencia que a bateria de cinco arquétipos expõe, de forma quantificada, uma fragilidade de sintonia que a validação em malha aberta ou com uma única planta não revelaria: o mesmo controlador, com os mesmos ganhos, comporta-se de forma satisfatória em quatro das cinco plantas e é criticamente subamortecido na quinta, o que confirma que a sintonia de um PID depende do processo, e não apenas do algoritmo.
+
+% ---------------------------------------------------------------------------- %
+\section{Repetição no STM32F767ZI}
+\label{sec:ape-pid-stm32}
+
+Sobre o STM32F767ZI, o bloco PID foi ensaiado em dois roteiros do catálogo de testes (Quadro~\ref{qua:testes-controle}), com a variável de processo e o \textit{setpoint} impostos por forçamento de memória ou, no segundo, por uma tensão real na entrada analógica AI2, e a saída de controle (\texttt{CV}) e os sinalizadores lidos na lista de monitoração da ferramenta de depuração.
+No roteiro de unidade (caso B2), os onze passos --- que cobrem os modos desabilitado, automático, manual e \textit{reset}, a saturação nos dois limites, a banda morta, a ação integral e a transferência entre manual e automático sem salto --- foram conformes.
+No roteiro com entrada analógica (caso B3), com $K_p = 0{,}4$, $K_i = 0{,}05$, período de amostragem de 100~ms, \textit{setpoint} igual a 50 e saída limitada entre 0 e 100, cinco dos seis passos foram registrados como conformes: com variável de processo nula, a saída de controle seguiu a soma da parcela proporcional (20) e da integral (cerca de 25 após 2~s); com a variável de processo em 50, a parcela proporcional se anulou e a integral deixou de crescer; com a variável de processo em 100, a saída saturou em zero e o sinalizador de limite inferior foi acionado; e o \textit{reset} zerou o integrador e a saída, que voltou a ser calculada ao soltá-lo.
+O passo restante, a conferência inicial com o bloco desabilitado, não foi registrado.
+Como a saída analógica da plataforma não foi medida eletricamente, a malha com planta simulada (Seção~\ref{sec:ape-pid-hil}) não foi repetida no STM32F767ZI.

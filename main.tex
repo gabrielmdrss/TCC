@@ -204,9 +204,9 @@
 % Resumo
 
 \chapter*{Resumo}
-	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.\\
+	Este trabalho apresenta a implementação e a validação de uma máquina virtual de lógica \textit{Ladder} independente de \textit{hardware}, concebida segundo a metodologia de \textit{Model-Based Design} para executar programas de controle em microcontroladores. A solução compreende um conjunto de 76 instruções com palavra-base de 32 \textit{bits}, um motor de execução com memória alocada estaticamente e acessos validados, uma camada de abstração que isola o motor do microcontrolador e um protocolo serial, com enquadramento COBS e verificação CRC16, para a carga do \textit{bytecode} e a depuração. A plataforma-alvo é o microcontrolador STM32F767ZI, e a máquina de modos do bloco de controle PID é especificada em \textit{Simulink}/\textit{Stateflow}. A validação seguiu um catálogo de 25 casos de teste, que cobre lógica de contatos, temporização, contagem, aritmética, entradas e saídas analógicas, blocos de controle, robustez do protocolo e desempenho, com resultados esperados obtidos de tabelas-verdade, de cálculos independentes e de um modelo de referência executável. Dos 220 passos de verificação funcional, 219 foram conformes, e os 52 pacotes malformados aplicados ao protocolo foram rejeitados com o código de rejeição esperado. Os ensaios revelaram quatro defeitos de implementação, posteriormente corrigidos. Na configuração de depuração do compilador, o tempo de varredura foi de cerca de 37~$\mu$s por \textit{rung} de cinco instruções, e o \textit{firmware} ocupou 76,67~KB de memória \textit{Flash} e 15,6~KB de RAM. A validação cruzada contra os modelos \textit{Simulink}/\textit{Stateflow} e a repetição dos ensaios em malha fechada na plataforma-alvo permanecem como trabalhos futuros.\\
 
-\noindent \textbf{Palavras-chave:} XXXXXXXXXXXXXXXXXXX.
+\noindent \textbf{Palavras-chave:} Máquina virtual. Lógica \textit{Ladder}. \textit{Model-Based Design}. Controlador lógico programável. STM32.
 
 
 \pagebreak
@@ -215,9 +215,9 @@
 % ---------------------------------------------------------------------------- %
 
  \chapter*{Abstract}
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.\\
+This work presents the implementation and validation of a hardware-agnostic Ladder logic virtual machine, designed under the Model-Based Design methodology to run control programs on microcontrollers. The solution comprises a 76-instruction set with a 32-bit base word, an execution engine with statically allocated memory and validated accesses, a hardware abstraction layer that isolates the engine from the microcontroller, and a serial protocol, with COBS framing and CRC16 checking, for bytecode download and debugging. The target platform is the STM32F767ZI microcontroller, and the mode logic of the PID control block is specified in Simulink/Stateflow. Validation followed a catalogue of 25 test cases covering contact logic, timing, counting, arithmetic, analog inputs and outputs, control blocks, protocol robustness and performance, with expected results taken from truth tables, independent calculations and an executable reference model. Of the 220 functional verification steps, 219 were conforming, and all 52 malformed packets applied to the protocol were rejected with the expected rejection code. The tests revealed four implementation defects, which were subsequently fixed. In the compiler debug configuration, the scan time was about 37~$\mu$s per five-instruction rung, and the firmware occupied 76.67~KB of Flash memory and 15.6~KB of RAM. Cross-validation against the Simulink/Stateflow models and the repetition of the closed-loop tests on the target platform remain as future work.\\
 
- \noindent \textbf{Keywords:} XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.
+ \noindent \textbf{Keywords:} Virtual machine. Ladder logic. Model-Based Design. Programmable logic controller. STM32.
 
 
 
@@ -303,6 +303,7 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.\\
 
 \include{apendices/01-especificacao-isa}
 \include{apendices/02-ensaios-pid}
+\include{apendices/03-ensaios-protocolo}
 
 
 % ---------------------------------------------------------------------------- %
