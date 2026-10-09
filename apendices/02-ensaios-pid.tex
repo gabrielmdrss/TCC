@@ -4,7 +4,7 @@
 \label{ape:pid}
 \addtocontents{toc}{\protect\let\protect\numberline\protect\numberlineorig}
 
-Este apêndice registra os ensaios realizados sobre o bloco PID descrito na Seção~\ref{sub:blocos-funcionais} e cuja máquina de modos é especificada na Seção~\ref{sec:stateflow-mbd}: testes de unidade e regressão e ensaios em malha fechada com \textit{Hardware-in-the-Loop} (\textit{HIL}).
+Este apêndice registra os ensaios realizados sobre o bloco PID descrito na Seção~\ref{sub:blocos-funcionais} e cuja máquina de modos é especificada na Subseção~\ref{sub:modelo-pid}: testes de unidade e regressão e ensaios em malha fechada com \textit{Hardware-in-the-Loop} (\textit{HIL}).
 Ambos foram executados na plataforma de desenvolvimento do firmware, e uma parte deles foi repetida no STM32F767ZI (Seção~\ref{sec:ape-pid-stm32}).
 Como o motor de execução da máquina virtual não acessa periféricos fora do contrato da camada de abstração (Seção~\ref{sec:hal-implementacao}), o comportamento validado independe do microcontrolador; a repetição dos ensaios de unidade e do ensaio com entrada analógica real no STM32F767ZI consta da Seção~\ref{sec:ape-pid-stm32}; a malha fechada com planta simulada não foi repetida nessa plataforma.
 

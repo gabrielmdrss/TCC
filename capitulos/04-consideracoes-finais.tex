@@ -26,7 +26,7 @@ O Quadro~\ref{qua:atendimento-objetivos} relaciona os objetivos específicos ao 
         \hline
         Especificar e documentar a \textit{ISA} de 32 \textit{bits} compatível com o \textit{Ladder} da IEC 61131-3 & Atendido & Especificação dos 76 \textit{opcodes} no \ref{ape:isa}, conferida contra o \textit{firmware} e corrigida nos três pontos divergentes. \\
         \hline
-        Modelar lógicas de referência em \textit{Simulink}/\textit{Stateflow} & Parcial & Especificação da máquina de modos do bloco PID (Seção~\ref{sec:stateflow-mbd}); as demais lógicas tiveram como referência tabelas-verdade, cálculos independentes e um modelo executável em \textit{Python}. \\
+        Modelar lógicas de referência em \textit{Simulink}/\textit{Stateflow} & Parcial & Modelo do ciclo de varredura e das instruções de lógica, temporização e contagem, e extensão ao bloco PID nos ensaios \textit{HIL} (Seção~\ref{sec:stateflow-mbd}); o modelo ainda se restringe a um subconjunto com codificação preliminar, e os ensaios tiveram como referência tabelas-verdade, cálculos independentes e um modelo executável em \textit{Python}. \\
         \hline
         Implementar o motor de execução em linguagem C & Atendido & Seção~\ref{sec:vm-isa}; casos L, T, C, N e B do catálogo. \\
         \hline
@@ -54,7 +54,7 @@ As demais limitações dos resultados foram discutidas na Seção~\ref{sub:discu
 As limitações apontadas orientam as seguintes sugestões:
 
 \begin{itemize}
-    \item executar os modelos \textit{Simulink}/\textit{Stateflow} da lógica de contatos, da temporização e da contagem e realizar a validação cruzada contra a máquina virtual embarcada, com comparação das imagens de saída varredura a varredura;
+    \item estender o modelo \textit{Simulink}/\textit{Stateflow} da máquina virtual ao repertório definitivo de instruções, executá-lo e realizar a validação cruzada contra a máquina virtual embarcada, com comparação das imagens de saída varredura a varredura;
     \item repetir no STM32F767ZI os ensaios \textit{HIL} do bloco PID, com medição elétrica da saída analógica e dos sinais PWM por instrumento de aquisição, e acrescentar o estágio de condicionamento para a faixa de 0 a 10~V usual em CLPs;
     \item medir o tempo de varredura com otimização do compilador e com a memória de instruções em cache (acelerador de \textit{Flash} e \textit{cache} do núcleo) habilitados, e investigar o comportamento do programa de 10 \textit{rungs}, que não segue o ajuste linear dos demais;
     \item caracterizar a variação do tempo de varredura (\textit{jitter}) com entradas estáveis e sob carga de comunicação, para sustentar quantitativamente a afirmação de determinismo;

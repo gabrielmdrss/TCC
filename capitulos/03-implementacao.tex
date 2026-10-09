@@ -4,7 +4,7 @@
 \label{cap:implementacao}
 
 Os conceitos que sustentam a solução --- Arquitetura de Conjunto de Instruções (\textit{ISA}), Camada de Abstração de \textit{Hardware} (\textit{HAL}), ambiente de execução isolado (\textit{sandbox}) e \textit{Model-Based Design} --- foram apresentados no Capítulo~\ref{cap:fundamentacao}.
-Este capítulo descreve como cada um deles se materializa na implementação: a arquitetura em camadas (Seção~\ref{sec:visao-geral-implementacao}), a plataforma-alvo (Seção~\ref{sec:plataforma-alvo}), a máquina virtual e o conjunto de instruções (Seção~\ref{sec:vm-isa}), o modelo de memória e o ambiente de execução isolado (Seção~\ref{sec:memoria-sandbox}), a camada de abstração de \textit{hardware} (Seção~\ref{sec:hal-implementacao}), o protocolo de comunicação (Seção~\ref{sec:protocolo}), a modelagem em \textit{Simulink}/\textit{Stateflow} (Seção~\ref{sec:stateflow-mbd}), a estratégia de validação (Seção~\ref{sec:validacao-testes}) e os resultados dos ensaios (Seção~\ref{sec:resultados-ensaios}).
+Este capítulo descreve como cada um deles se materializa na implementação: a arquitetura em camadas (Seção~\ref{sec:visao-geral-implementacao}), a modelagem em \textit{Simulink}/\textit{Stateflow}, etapa que precede o \textit{firmware} (Seção~\ref{sec:stateflow-mbd}), a plataforma-alvo (Seção~\ref{sec:plataforma-alvo}), a máquina virtual e o conjunto de instruções (Seção~\ref{sec:vm-isa}), o modelo de memória e o ambiente de execução isolado (Seção~\ref{sec:memoria-sandbox}), a camada de abstração de \textit{hardware} (Seção~\ref{sec:hal-implementacao}), o protocolo de comunicação (Seção~\ref{sec:protocolo}), a estratégia de validação (Seção~\ref{sec:validacao-testes}) e os resultados dos ensaios (Seção~\ref{sec:resultados-ensaios}).
 A especificação completa do conjunto de instruções, os ensaios do bloco de controle PID e o registro do ensaio de robustez do protocolo constam, respectivamente, do \ref{ape:isa}, do \ref{ape:pid} e do \ref{ape:protocolo}.
 Cada escolha de projeto é acompanhada de sua justificativa, reunidas no Quadro~\ref{qua:escolhas-projeto}.
 
@@ -14,6 +14,15 @@ Cada escolha de projeto é acompanhada de sua justificativa, reunidas no Quadro~
     seta/.style={-{Stealth[length=2.4mm]}, thick},
     rotulo/.style={font=\footnotesize, inner sep=1.5pt, fill=white}
 }
+
+% Figura de captura de tela (Simulink/Stateflow): usa figuras/<nome>.png quando existir;
+% caso contrário, mostra um espaço reservado, para que o documento compile sem a imagem.
+\providecommand{\figuraImagem}[3]{%
+    \IfFileExists{figuras/#1.png}{%
+        \includegraphics[width=\textwidth,height=#2,keepaspectratio]{#1}}{%
+        \begin{tikzpicture}
+            \node[draw, dashed, thick, fill=gray!8, text width=0.8\textwidth, minimum height=#2, align=center, font=\small] {\textbf{[Imagem a inserir]}\\\texttt{figuras/#1.png}\\[2pt]#3};
+        \end{tikzpicture}}}
 
 %% ------------------------------------------------------------------------- %%
 \section{Visão Geral da Arquitetura Implementada}
@@ -81,6 +90,171 @@ O Quadro~\ref{qua:recursos} reúne a capacidade dos recursos disponíveis ao pro
     \label{qua:recursos}
     \fonte{Elaborado pelo autor (2026).}
 \end{quadro}
+
+
+%% ------------------------------------------------------------------------- %%
+\section{Modelagem em Simulink/Stateflow segundo Model-Based Design}
+\label{sec:stateflow-mbd}
+
+A metodologia de \textit{Model-Based Design}, fundamentada na Seção~\ref{sec:fundamentos-solucao}, prescreve que o comportamento esperado do sistema seja descrito por um modelo executável antes da implementação, e que esse modelo sirva de referência para validar o código dela resultante \cite{nicolescu:2009}.
+Por essa razão, a modelagem é a primeira etapa da implementação: precede o desenvolvimento do \textit{firmware} e independe do microcontrolador, de modo que as decisões nela tomadas --- a estrutura do ciclo de varredura, a separação entre busca, decodificação e execução, e o estado que cada instrução manipula --- orientam a organização da máquina virtual descrita nas seções seguintes.
+Os modelos em \textit{Simulink}/\textit{Stateflow} cumprem, neste trabalho, três papéis: especificam, de forma executável, o comportamento da máquina virtual como um todo (Subseção~\ref{sub:modelo-vm}); servem de referência para a validação cruzada da máquina virtual embarcada (Seção~\ref{sec:validacao-testes}); e, em conjunto com modelos de planta, fecham a malha dos ensaios \textit{Hardware-in-the-Loop} do bloco PID, extensão da abordagem voltada à simulação com o \textit{hardware} e não à modelagem do bloco (Subseção~\ref{sub:modelo-pid}).
+
+%% ------------------------------------------------------------------------- %%
+\subsection{Modelo da máquina virtual}
+\label{sub:modelo-vm}
+
+O modelo de nível superior (Figura~\ref{fig:simulink-modelo}) reproduz o ambiente de um CLP em simulação: chaves de entrada, reunidas por concatenação em um vetor de entradas físicas, alimentam um subsistema orquestrador, e o vetor de saídas por ele devolvido aciona lâmpadas indicadoras.
+O arranjo permite carregar um programa em \textit{bytecode} no modelo e observar o resultado das varreduras sem recorrer a qualquer \textit{hardware}.
+
+\begin{figure}[htb]
+    \centering
+    \figuraImagem{simulink-modelo-topo}{6.5cm}{Modelo \textit{Simulink} de nível superior: chaves de entrada, subsistema orquestrador (\textit{Main\_Orchestrator}) e lâmpadas de saída}
+    \caption{Modelo \textit{Simulink} de nível superior da máquina virtual}
+    \label{fig:simulink-modelo}
+
+    \fonte{Elaborado pelo autor (2026).}
+\end{figure}
+
+O subsistema orquestrador contém um \textit{chart} \textit{Stateflow} cujo estado de mais alto nível (Figura~\ref{fig:stateflow-varredura}) é uma sequência de três estados, correspondentes às etapas do ciclo de varredura descrito na Seção~\ref{sec:visao-geral-implementacao}: leitura das entradas, em que as entradas físicas são copiadas para a imagem de entradas; execução da máquina virtual; e escrita das saídas, em que a imagem de saídas é copiada para as saídas físicas.
+Ao término da escrita das saídas, o ciclo recomeça.
+Separar as três etapas no modelo explicita uma propriedade do ciclo de varredura: o programa lê e escreve apenas as imagens, e a cópia de e para o mundo físico ocorre uma única vez por varredura.
+
+\begin{figure}[htb]
+    \centering
+    \figuraImagem{stateflow-varredura}{5.5cm}{\textit{Chart} \textit{Stateflow} de nível superior: estados de leitura das entradas, execução da máquina virtual e escrita das saídas}
+    \caption{Ciclo de varredura no \textit{chart} \textit{Stateflow}}
+    \label{fig:stateflow-varredura}
+
+    \fonte{Elaborado pelo autor (2026).}
+\end{figure}
+
+O estado de execução decompõe o ciclo \textit{fetch-decode-execute} apresentado na Seção~\ref{sec:vm-isa} (Figura~\ref{fig:stateflow-execucao}).
+Um estado de busca lê a instrução apontada pelo contador de instruções; um estado de despacho seleciona, pela faixa em que se encontra o código da operação, a unidade funcional correspondente --- lógica, pilha, temporizadores, contadores ou controle de fluxo ---; cada unidade possui um estado por instrução, cujas ações de entrada avançam o contador de instruções, leem os operandos que se seguem à palavra-base e atualizam a pilha lógica e as imagens de entradas e saídas; e uma sinalização de conclusão devolve o controle ao despacho, que retorna à busca até que a instrução de fim de programa encerre a varredura.
+O Quadro~\ref{qua:correspondencia-modelo} associa os elementos do modelo aos da implementação.
+
+\begin{figure}[htb]
+    \centering
+    \figuraImagem{stateflow-execucao}{9.0cm}{Interior do estado de execução: busca, despacho (\textit{EXECUTION\_HUB}), unidades funcionais e término da varredura}
+    \caption{Decomposição do estado de execução da máquina virtual no \textit{chart} \textit{Stateflow}}
+    \label{fig:stateflow-execucao}
+
+    \fonte{Elaborado pelo autor (2026).}
+\end{figure}
+
+A Figura~\ref{fig:stateflow-unidade} detalha, como exemplo, a unidade de temporizadores.
+Cada instrução é um estado cujas transições são guardadas por condições sobre o acumulador lógico e sobre o acumulador do temporizador --- por exemplo, o \textit{TON} só incrementa o acumulador enquanto a entrada permanece verdadeira e o zera na condição contrária ---, o que torna a semântica de cada instrução legível diretamente no diagrama e confrontável com a especificação do \ref{ape:isa}.
+
+\begin{figure}[htb]
+    \centering
+    \figuraImagem{stateflow-unidade-temporizadores}{8.0cm}{Unidade de temporizadores (\textit{UNIT\_TIMERS}) com os estados das instruções \textit{TON}, \textit{TOF} e \textit{TP}}
+    \caption{Unidade de temporizadores no \textit{chart} \textit{Stateflow}}
+    \label{fig:stateflow-unidade}
+
+    \fonte{Elaborado pelo autor (2026).}
+\end{figure}
+
+\begin{quadro}[htb]
+    \centering
+    \small
+    \begin{tabular}{|p{5.6cm}|p{8.6cm}|}
+        \hline
+        Elemento do modelo & Elemento da implementação \\
+        \hline
+        Estados de leitura das entradas e de escrita das saídas & Leitura das entradas físicas com \textit{debounce} e aplicação da imagem de saídas ao \textit{hardware} pela camada de abstração (Seção~\ref{sec:visao-geral-implementacao}) \\
+        \hline
+        Estado de busca & Etapa de busca do ciclo \textit{fetch-decode-execute} (Figura~\ref{fig:fetch-decode-execute}) \\
+        \hline
+        Estado de despacho (\textit{hub}) & Despacho por tabela de opcodes; o modelo, por simplicidade, seleciona a unidade pela faixa do código da operação \\
+        \hline
+        Unidades e estados de instrução & Funções de execução de cada instrução, agrupadas como no Quadro~\ref{qua:grupos-instrucoes} \\
+        \hline
+        Vetor de pilha e seu apontador & Pilha lógica \\
+        \hline
+        Imagens de entradas e de saídas & Imagens de entradas e de saídas dos mapas de memória (Seção~\ref{sec:memoria-sandbox}) \\
+        \hline
+        Acumuladores de temporizadores e de contadores & Estado dos temporizadores e dos contadores nos mapas de memória \\
+        \hline
+        Vetor do programa e contador de instruções & \textit{Bytecode} em região somente leitura e contador de instruções do motor de execução \\
+        \hline
+    \end{tabular}
+
+    \caption{Correspondência entre os elementos do modelo e da implementação}
+    \label{qua:correspondencia-modelo}
+    \fonte{Elaborado pelo autor (2026).}
+\end{quadro}
+
+O modelo foi construído antes do \textit{firmware}, com uma codificação preliminar de instruções de 8 \textit{bits} organizada em famílias --- carga, saída, lógica booleana, pilha, temporizadores, contadores e controle de fluxo ---, e cobre o subconjunto formado pelas cargas, saídas, lógica booleana, temporizadores e contadores.
+A \textit{ISA} definitiva (\ref{ape:isa}) amplia o repertório, adota a palavra-base de 32 \textit{bits} e acrescenta, entre outros, as bordas, a aritmética, os blocos de controle e as entradas e saídas analógicas; a equivalência entre os dois repertórios é a que o Quadro~\ref{qua:correspondencia-modelo} registra na estrutura, e não nos códigos de operação.
+% TODO (autor): atualizar este parágrafo quando o modelo for estendido ao repertório definitivo e inserir os resultados de simulação.
+
+O procedimento de validação cruzada, análogo ao de Duggan et al. \cite{duggan:2022}, aplica o mesmo vetor de estímulos ao modelo simulado e à máquina virtual em execução, registra a imagem de saídas de cada varredura e compara os dois resultados, com as transições de estado --- e não apenas o valor final --- incluídas na comparação.
+Nos ensaios sobre o STM32F767ZI (Seção~\ref{sec:validacao-testes}), o papel de modelo semântico executável, como o empregado por Sadolewski e Trybus \cite{sadolewski:2024}, foi exercido por um modelo de referência em \textit{Python}, que reproduz a semântica do conjunto de instruções definitivo; a comparação sistemática com o modelo \textit{Simulink}/\textit{Stateflow} não foi realizada e consta como sugestão de trabalho futuro (Seção~\ref{sec:futuros}).
+
+%% ------------------------------------------------------------------------- %%
+\subsection{Extensão ao bloco PID e ensaios \textit{HIL}}
+\label{sub:modelo-pid}
+
+A abordagem foi estendida ao bloco PID, com ênfase diferente: no controlador, o interesse da simulação está menos em especificar o algoritmo do que em ensaiá-lo em malha fechada.
+Uma planta modelada em \textit{Simulink} é executada em tempo real e ligada, por um instrumento de aquisição analógica, ao microcontrolador, que executa o bloco PID do próprio \textit{firmware} --- ensaio \textit{Hardware-in-the-Loop} descrito no \ref{ape:pid}.
+A Figura~\ref{fig:simulink-hil} apresenta o modelo utilizado nesses ensaios.
+
+\begin{figure}[htb]
+    \centering
+    \figuraImagem{simulink-hil-planta}{6.5cm}{Modelo \textit{Simulink} da planta e da interface com o instrumento de aquisição analógica nos ensaios \textit{HIL}}
+    \caption{Modelo \textit{Simulink} da planta nos ensaios \textit{HIL} do bloco PID}
+    \label{fig:simulink-hil}
+
+    \fonte{Elaborado pelo autor (2026).}
+\end{figure}
+
+Da parte de modelagem, a máquina de modos do bloco PID é inteiramente especificada por estados e transições: quatro modos com prioridade estrita, avaliados nesta ordem a cada execução do bloco --- \textsc{Desabilitado}, \textsc{Reset}, \textsc{Manual} e \textsc{Automático} ---, como mostram a Figura~\ref{fig:stateflow-pid} e o Quadro~\ref{qua:estados-pid}.
+
+\begin{figure}[htb]
+    \centering
+    \begin{tikzpicture}[x=1cm,y=1cm]
+        \node[diamond, draw, aspect=2.2, align=center, font=\footnotesize, inner sep=1pt, fill=corHW] (en) at (0,0) {\texttt{EN}?};
+        \node[diamond, draw, aspect=2.2, align=center, font=\footnotesize, inner sep=1pt, fill=corHW] (rs) at (4.6,0) {\texttt{RESET}?};
+        \node[diamond, draw, aspect=2.2, align=center, font=\footnotesize, inner sep=1pt, fill=corHW] (mn) at (9.2,0) {\texttt{MANUAL}?};
+        \node[estado, fill=corHAL] (des) at (0,-2.6) {\textsc{Desabilitado}};
+        \node[estado, fill=corErr] (res) at (4.6,-2.6) {\textsc{Reset}};
+        \node[estado, fill=corCom] (man) at (9.2,-2.6) {\textsc{Manual}};
+        \node[estado, fill=corMem] (aut) at (12.6,0) {\textsc{Automático}};
+        \draw[seta] (en) -- node[rotulo, above] {sim} (rs);
+        \draw[seta] (rs) -- node[rotulo, above] {não} (mn);
+        \draw[seta] (mn) -- node[rotulo, above] {não} (aut);
+        \draw[seta] (en) -- node[rotulo, left] {não} (des);
+        \draw[seta] (rs) -- node[rotulo, left] {sim} (res);
+        \draw[seta] (mn) -- node[rotulo, left] {sim} (man);
+    \end{tikzpicture}
+    \caption{Prioridade dos modos do bloco PID (especificação do \textit{chart} \textit{Stateflow})}
+    \label{fig:stateflow-pid}
+
+    \fonte{Elaborado pelo autor (2026).}
+\end{figure}
+
+\begin{quadro}[htb]
+    \centering
+    \begin{tabular}{|l|p{4.6cm}|p{7.2cm}|}
+        \hline
+        Modo & Condição & Comportamento \\
+        \hline
+        \textsc{Desabilitado} & \texttt{EN} = falso & Bloco não calcula; \texttt{CV} assume o limite mínimo de saída; o integrador é preservado, para retomada próxima do ponto de parada. \\
+        \hline
+        \textsc{Reset} & \texttt{EN} verdadeiro e \texttt{RESET} verdadeiro & Integrador zerado; \texttt{CV} igual ao limite mínimo. \\
+        \hline
+        \textsc{Manual} & \texttt{EN} verdadeiro, \texttt{RESET} falso e \texttt{MANUAL} verdadeiro & \texttt{CV} segue o valor manual, limitado à faixa; integrador em \textit{back-tracking} para transição sem salto. \\
+        \hline
+        \textsc{Automático} & \texttt{EN} verdadeiro, \texttt{RESET} e \texttt{MANUAL} falsos & PID posicional com banda morta e anti-\textit{windup} por integração condicional. \\
+        \hline
+    \end{tabular}
+
+    \caption{Especificação da máquina de modos do bloco PID}
+    \label{qua:estados-pid}
+    \fonte{Elaborado pelo autor (2026).}
+\end{quadro}
+
+\clearpage % encerra os flutuantes desta seção antes da seção seguinte
 
 
 %% ------------------------------------------------------------------------- %%
@@ -351,7 +525,7 @@ O dispositivo mantém uma máquina de estados com três modos --- espera, transf
 A Figura~\ref{fig:protocolo-sequencia} apresenta a sequência de uma transferência de \textit{bytecode}.
 A autenticação do \textit{host} não faz parte do escopo desta monografia; a rejeição correta de quadros malformados é, portanto, a barreira de robustez do canal contra ruído e contra uso incorreto da ferramenta.
 
-\begin{figure}[htb]
+\begin{figure}[!htb]
     \centering
     \begin{tikzpicture}[x=1cm,y=1cm]
         \node[bloco, fill=corApp, minimum width=3cm] (h) at (-4,0) {Ferramenta de \textit{host}};
@@ -371,62 +545,6 @@ A autenticação do \textit{host} não faz parte do escopo desta monografia; a r
 
     \fonte{Elaborado pelo autor (2026).}
 \end{figure}
-
-
-%% ------------------------------------------------------------------------- %%
-\section{Modelagem em Simulink/Stateflow segundo Model-Based Design}
-\label{sec:stateflow-mbd}
-
-A metodologia de \textit{Model-Based Design}, fundamentada na Seção~\ref{sec:fundamentos-solucao}, prescreve um modelo executável do comportamento esperado como referência para validar a implementação \cite{nicolescu:2009}.
-Neste trabalho, os modelos em \textit{Simulink}/\textit{Stateflow} cumprem dois papéis: especificam a máquina de modos do bloco PID e, em conjunto com modelos de planta, fecham a malha dos ensaios \textit{Hardware-in-the-Loop} do \ref{ape:pid}.
-O procedimento de validação cruzada, análogo ao de Duggan et al. \cite{duggan:2022}, aplica o mesmo vetor de estímulos ao modelo simulado e à máquina virtual em execução, registra a imagem de saídas de cada varredura e compara os dois resultados, com as transições de estado --- e não apenas o valor final --- incluídas na comparação.
-Nos ensaios sobre o STM32F767ZI (Seção~\ref{sec:validacao-testes}), o papel de modelo semântico executável, como o empregado por Sadolewski e Trybus \cite{sadolewski:2024}, foi exercido por um modelo de referência em \textit{Python}, que reproduz a semântica do conjunto de instruções; a execução dos modelos \textit{Simulink}/\textit{Stateflow} como oráculo da lógica de contatos não foi realizada e consta como sugestão de trabalho futuro (Seção~\ref{sec:futuros}).
-
-A máquina de modos do bloco PID foi escolhida como primeiro artefato de modelagem por estar inteiramente especificada por estados e transições: quatro modos com prioridade estrita, avaliados nesta ordem a cada execução do bloco --- \textsc{Desabilitado}, \textsc{Reset}, \textsc{Manual} e \textsc{Automático} ---, como mostram a Figura~\ref{fig:stateflow-pid} e o Quadro~\ref{qua:estados-pid}.
-
-\begin{figure}[htb]
-    \centering
-    \begin{tikzpicture}[x=1cm,y=1cm]
-        \node[diamond, draw, aspect=2.2, align=center, font=\footnotesize, inner sep=1pt, fill=corHW] (en) at (0,0) {\texttt{EN}?};
-        \node[diamond, draw, aspect=2.2, align=center, font=\footnotesize, inner sep=1pt, fill=corHW] (rs) at (4.6,0) {\texttt{RESET}?};
-        \node[diamond, draw, aspect=2.2, align=center, font=\footnotesize, inner sep=1pt, fill=corHW] (mn) at (9.2,0) {\texttt{MANUAL}?};
-        \node[estado, fill=corHAL] (des) at (0,-2.6) {\textsc{Desabilitado}};
-        \node[estado, fill=corErr] (res) at (4.6,-2.6) {\textsc{Reset}};
-        \node[estado, fill=corCom] (man) at (9.2,-2.6) {\textsc{Manual}};
-        \node[estado, fill=corMem] (aut) at (12.6,0) {\textsc{Automático}};
-        \draw[seta] (en) -- node[rotulo, above] {sim} (rs);
-        \draw[seta] (rs) -- node[rotulo, above] {não} (mn);
-        \draw[seta] (mn) -- node[rotulo, above] {não} (aut);
-        \draw[seta] (en) -- node[rotulo, left] {não} (des);
-        \draw[seta] (rs) -- node[rotulo, left] {sim} (res);
-        \draw[seta] (mn) -- node[rotulo, left] {sim} (man);
-    \end{tikzpicture}
-    \caption{Prioridade dos modos do bloco PID (especificação do \textit{chart} \textit{Stateflow})}
-    \label{fig:stateflow-pid}
-
-    \fonte{Elaborado pelo autor (2026).}
-\end{figure}
-
-\begin{quadro}[htb]
-    \centering
-    \begin{tabular}{|l|p{4.6cm}|p{7.2cm}|}
-        \hline
-        Modo & Condição & Comportamento \\
-        \hline
-        \textsc{Desabilitado} & \texttt{EN} = falso & Bloco não calcula; \texttt{CV} assume o limite mínimo de saída; o integrador é preservado, para retomada próxima do ponto de parada. \\
-        \hline
-        \textsc{Reset} & \texttt{EN} verdadeiro e \texttt{RESET} verdadeiro & Integrador zerado; \texttt{CV} igual ao limite mínimo. \\
-        \hline
-        \textsc{Manual} & \texttt{EN} verdadeiro, \texttt{RESET} falso e \texttt{MANUAL} verdadeiro & \texttt{CV} segue o valor manual, limitado à faixa; integrador em \textit{back-tracking} para transição sem salto. \\
-        \hline
-        \textsc{Automático} & \texttt{EN} verdadeiro, \texttt{RESET} e \texttt{MANUAL} falsos & PID posicional com banda morta e anti-\textit{windup} por integração condicional. \\
-        \hline
-    \end{tabular}
-
-    \caption{Especificação da máquina de modos do bloco PID}
-    \label{qua:estados-pid}
-    \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
 
 
 %% ------------------------------------------------------------------------- %%
@@ -897,7 +1015,7 @@ Essa uniformidade indica que o tempo é dominado pelo custo fixo de despacho e a
 Ainda assim, o maior programa suportado leva menos de 10 ms por varredura, compatível com ciclos usuais de CLPs de pequeno porte.
 
 Os resultados têm limitações que delimitam o que se pode afirmar.
-Primeiro, o resultado esperado vem de tabelas-verdade, de cálculo independente e de um modelo de referência executável em \textit{Python} que reproduz a semântica do conjunto de instruções, e não da execução dos modelos \textit{Simulink}/\textit{Stateflow} da Seção~\ref{sec:stateflow-mbd}, que neste trabalho especificam a máquina de modos do PID; a validação cruzada contra esses modelos não foi realizada.
+Primeiro, o resultado esperado vem de tabelas-verdade, de cálculo independente e de um modelo de referência executável em \textit{Python} que reproduz a semântica do conjunto de instruções, e não da execução dos modelos \textit{Simulink}/\textit{Stateflow} da Seção~\ref{sec:stateflow-mbd}, que cobrem um subconjunto do repertório com codificação preliminar; a validação cruzada contra esses modelos não foi realizada.
 Segundo, a bancada implementa cinco entradas e dez saídas digitais e uma única entrada analógica ligada, e os sinais elétricos de PWM e da saída analógica não foram medidos, apenas lidos no depurador; a saída analógica opera de 0 a 3,3 V, sem o estágio de condicionamento para 0 a 10 V.
 Terceiro, a malha fechada com planta simulada não foi repetida no STM32F767ZI.
 Quarto, as medições de desempenho cobrem uma única configuração de compilação, e o caso de 10 \textit{rungs} não segue o comportamento linear dos demais.
@@ -907,7 +1025,7 @@ Essas limitações orientam as sugestões do Capítulo~\ref{cap:finais}.
 \section{Síntese}
 \label{sec:sintese-implementacao}
 
-Este capítulo apresentou a implementação da solução cujos fundamentos foram estabelecidos no Capítulo~\ref{cap:fundamentacao}: um motor de execução \textit{fetch-decode-execute} com palavra-base de instrução de 32 \textit{bits} e despacho em tempo constante; blocos funcionais com estado segregado em mapas de memória de acesso validado; uma camada de abstração que confina ao contrato de um único módulo toda a dependência do STM32F767ZI; um protocolo com enquadramento COBS e verificação CRC16; especificações em \textit{Simulink}/\textit{Stateflow} da máquina de modos do bloco PID; e uma estratégia de validação em quatro níveis, com cobertura de todos os grupos do repertório de instruções.
+Este capítulo apresentou a implementação da solução cujos fundamentos foram estabelecidos no Capítulo~\ref{cap:fundamentacao}: um motor de execução \textit{fetch-decode-execute} com palavra-base de instrução de 32 \textit{bits} e despacho em tempo constante; blocos funcionais com estado segregado em mapas de memória de acesso validado; uma camada de abstração que confina ao contrato de um único módulo toda a dependência do STM32F767ZI; um protocolo com enquadramento COBS e verificação CRC16; um modelo em \textit{Simulink}/\textit{Stateflow} da máquina virtual, que precede o \textit{firmware}, com extensão ao bloco PID nos ensaios \textit{HIL}; e uma estratégia de validação em quatro níveis, com cobertura de todos os grupos do repertório de instruções.
 A execução dos casos de teste sobre o STM32F767ZI (Seção~\ref{sec:resultados-ensaios}) confirmou o comportamento especificado em 219 das 220 verificações funcionais, rejeitou os 52 pacotes malformados com o código de \textit{NACK} esperado e mediu cerca de 37~$\mu$s por \textit{rung} de cinco instruções na configuração de depuração, além de revelar e permitir corrigir quatro defeitos de implementação.
 As escolhas de projeto e suas justificativas estão reunidas no Quadro~\ref{qua:escolhas-projeto}.
 
