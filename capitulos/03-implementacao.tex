@@ -111,12 +111,12 @@ Os modelos em \textit{Simulink}/\textit{Stateflow} cumprem, neste trabalho, trê
 \subsection{Modelo da máquina virtual}
 \label{sub:modelo-vm}
 
-O modelo de nível superior (Figura~\ref{fig:simulink-modelo}) reproduz o ambiente de um CLP em simulação: chaves de entrada, reunidas por concatenação em um vetor de entradas físicas, alimentam um subsistema orquestrador, e o vetor de saídas por ele devolvido aciona lâmpadas indicadoras.
+O modelo de nível superior (Figura~\ref{fig:simulink-modelo}) reproduz o ambiente de um CLP em simulação: oito chaves de entrada (I0 a I7), reunidas por concatenação em um vetor de entradas físicas, alimentam um subsistema orquestrador, e o vetor de saídas por ele devolvido aciona oito lâmpadas indicadoras (Q0 a Q7).
 O arranjo permite carregar um programa em \textit{bytecode} no modelo e observar o resultado das varreduras sem recorrer a qualquer \textit{hardware}.
 
 \begin{figurafixa}
     \centering
-    \figuraImagem{simulink-modelo-topo}{6.5cm}{Modelo \textit{Simulink} de nível superior: chaves de entrada, subsistema orquestrador (\textit{Main\_Orchestrator}) e lâmpadas de saída}
+    \figuraImagem{simulink-modelo-topo}{7cm}{Modelo \textit{Simulink} de nível superior: chaves de entrada, subsistema orquestrador (\textit{Main\_Orchestrator}) e lâmpadas de saída}
     \captionof{figure}{Modelo \textit{Simulink} de nível superior da máquina virtual}
     \label{fig:simulink-modelo}
 
@@ -129,7 +129,7 @@ Separar as três etapas no modelo explicita uma propriedade do ciclo de varredur
 
 \begin{figurafixa}
     \centering
-    \figuraImagem{stateflow-varredura}{5.5cm}{\textit{Chart} \textit{Stateflow} de nível superior: estados de leitura das entradas, execução da máquina virtual e escrita das saídas}
+    \figuraImagem{stateflow-varredura}{9.5cm}{\textit{Chart} \textit{Stateflow} de nível superior: estados de leitura das entradas, execução da máquina virtual e escrita das saídas}
     \captionof{figure}{Ciclo de varredura no \textit{chart} \textit{Stateflow}}
     \label{fig:stateflow-varredura}
 
@@ -137,11 +137,11 @@ Separar as três etapas no modelo explicita uma propriedade do ciclo de varredur
 \end{figurafixa}
 
 O estado de execução decompõe o ciclo \textit{fetch-decode-execute} apresentado na Seção~\ref{sec:vm-isa} (Figura~\ref{fig:stateflow-execucao}).
-Um estado de busca lê a instrução apontada pelo contador de instruções; um estado de despacho seleciona, pela faixa em que se encontra o código da operação, a unidade funcional correspondente --- lógica, pilha, temporizadores, contadores ou controle de fluxo ---; cada unidade possui um estado por instrução, cujas ações de entrada avançam o contador de instruções, leem os operandos que se seguem à palavra-base e atualizam a pilha lógica e as imagens de entradas e saídas; e uma sinalização de conclusão devolve o controle ao despacho, que retorna à busca até que a instrução de fim de programa encerre a varredura.
+Um estado de inicialização zera o sinalizador de fim de varredura, o apontador da pilha lógica e o contador de instruções; um estado de busca lê a instrução apontada pelo contador de instruções; o estado de despacho (\textit{EXECUTION\_HUB}) seleciona, pela faixa em que se encontra o código da operação, a unidade funcional correspondente --- lógica, pilha, temporizadores, contadores ou controle de fluxo ---; cada unidade possui um estado por instrução, cujas ações de entrada avançam o contador de instruções, leem os operandos que se seguem ao código da operação e atualizam a pilha lógica e as imagens de entradas e saídas; e uma sinalização de conclusão devolve o controle ao despacho, que retorna à busca até que a instrução de fim de programa leve ao estado final, que sinaliza o término da varredura.
 
 \begin{figurafixa}
     \centering
-    \figuraImagem{stateflow-execucao}{9.0cm}{Interior do estado de execução: busca, despacho (\textit{EXECUTION\_HUB}), unidades funcionais e término da varredura}
+    \figuraImagem{stateflow-execucao}{9.0cm}{Interior do estado de execução: inicialização, busca, despacho (\textit{EXECUTION\_HUB}) e término da varredura}
     \captionof{figure}{Decomposição do estado de execução da máquina virtual no \textit{chart} \textit{Stateflow}}
     \label{fig:stateflow-execucao}
 
@@ -149,11 +149,12 @@ Um estado de busca lê a instrução apontada pelo contador de instruções; um 
 \end{figurafixa}
 
 A Figura~\ref{fig:stateflow-unidade} detalha, como exemplo, a unidade de temporizadores.
-Cada instrução é um estado cujas transições são guardadas por condições sobre o acumulador lógico e sobre o acumulador do temporizador --- por exemplo, o \textit{TON} só incrementa o acumulador enquanto a entrada permanece verdadeira e o zera na condição contrária ---, o que torna a semântica de cada instrução legível diretamente no diagrama e confrontável com a especificação do \ref{ape:isa}.
+Cada instrução é um estado cujas ações de entrada leem os operandos --- o índice do temporizador e o valor programado ---, seguido de um fluxograma de junções guardadas por condições sobre o acumulador lógico e sobre o acumulador do temporizador: no \textit{TON}, por exemplo, o acumulador é incrementado, com um limite superior, enquanto a entrada permanece verdadeira e é zerado na condição contrária, e a saída do bloco é verdadeira quando o acumulador atinge o valor programado.
+Assim, a semântica de cada instrução fica legível diretamente no diagrama e confrontável com a especificação do \ref{ape:isa}.
 
 \begin{figurafixa}
     \centering
-    \figuraImagem{stateflow-unidade-temporizadores}{8.0cm}{Unidade de temporizadores (\textit{UNIT\_TIMERS}) com os estados das instruções \textit{TON}, \textit{TOF} e \textit{TP}}
+    \figuraImagem{stateflow-unidade-temporizadores}{11cm}{Interior da unidade de temporizadores, com os estados das instruções \textit{TON}, \textit{TOF} e \textit{TP} e seus fluxogramas de decisão}
     \captionof{figure}{Unidade de temporizadores no \textit{chart} \textit{Stateflow}}
     \label{fig:stateflow-unidade}
 
@@ -192,12 +193,12 @@ O Quadro~\ref{qua:correspondencia-modelo} associa os elementos do modelo aos da 
     \fonte{Elaborado pelo autor (2026).}
 \end{quadrofixo}
 
-O modelo foi construído antes do \textit{firmware}, com uma codificação preliminar de instruções de 8 \textit{bits} organizada em famílias --- carga, saída, lógica booleana, pilha, temporizadores, contadores e controle de fluxo ---, e cobre o subconjunto formado pelas cargas, saídas, lógica booleana, temporizadores e contadores.
+O modelo foi construído antes do \textit{firmware}, com uma codificação de instruções de 8 \textit{bits} organizada em famílias --- carga, saída, lógica booleana, pilha, temporizadores, contadores e controle de fluxo ---, e cobre o subconjunto formado pelas cargas, saídas, lógica booleana, temporizadores e contadores.
 A \textit{ISA} definitiva (\ref{ape:isa}) amplia o repertório, adota a palavra-base de 32 \textit{bits} e acrescenta, entre outros, as bordas, a aritmética, os blocos de controle e as entradas e saídas analógicas; a equivalência entre os dois repertórios é a que o Quadro~\ref{qua:correspondencia-modelo} registra na estrutura, e não nos códigos de operação.
-% TODO (autor): atualizar este parágrafo quando o modelo for estendido ao repertório definitivo e inserir os resultados de simulação.
+Diferem também a profundidade da pilha lógica, de 8 posições no modelo e de 16 na implementação, e a temporização: no modelo, o acumulador do temporizador conta varreduras, ao passo que no \textit{firmware} a contagem deriva da base de tempo do sistema.
 
 O procedimento de validação cruzada, análogo ao de Duggan et al. \cite{duggan:2022}, aplica o mesmo vetor de estímulos ao modelo simulado e à máquina virtual em execução, registra a imagem de saídas de cada varredura e compara os dois resultados, com as transições de estado --- e não apenas o valor final --- incluídas na comparação.
-Nos ensaios sobre o STM32F767ZI (Seção~\ref{sec:validacao-testes}), o papel de modelo semântico executável, como o empregado por Sadolewski e Trybus \cite{sadolewski:2024}, foi exercido por um modelo de referência em \textit{Python}, que reproduz a semântica do conjunto de instruções definitivo; a comparação sistemática com o modelo \textit{Simulink}/\textit{Stateflow} não foi realizada e consta como sugestão de trabalho futuro (Seção~\ref{sec:futuros}).
+Nos ensaios sobre o STM32F767ZI (Seção~\ref{sec:validacao-testes}), o papel de modelo semântico executável, como o empregado por Sadolewski e Trybus \cite{sadolewski:2024}, foi exercido por um modelo de referência em \textit{Python}, que reproduz a semântica do conjunto de instruções definitivo; a comparação sistemática com o modelo \textit{Simulink}/\textit{Stateflow} não foi realizada e consta como sugestão de trabalho futuro (Seção~\ref{sec:futuros}), restrita, pelas diferenças apontadas, ao subconjunto comum aos dois repertórios --- contatos, lógica booleana e bobinas.
 
 %% ------------------------------------------------------------------------- %%
 \subsection{Extensão ao bloco PID e ensaios \textit{HIL}}
@@ -1054,7 +1055,7 @@ Essa uniformidade indica que o tempo é dominado pelo custo fixo de despacho e a
 Ainda assim, o maior programa suportado leva menos de 10 ms por varredura, compatível com ciclos usuais de CLPs de pequeno porte.
 
 Os resultados têm limitações que delimitam o que se pode afirmar.
-Primeiro, o resultado esperado vem de tabelas-verdade, de cálculo independente e de um modelo de referência executável em \textit{Python} que reproduz a semântica do conjunto de instruções, e não da execução dos modelos \textit{Simulink}/\textit{Stateflow} da Seção~\ref{sec:stateflow-mbd}, que cobrem um subconjunto do repertório com codificação preliminar; a validação cruzada contra esses modelos não foi realizada.
+Primeiro, o resultado esperado vem de tabelas-verdade, de cálculo independente e de um modelo de referência executável em \textit{Python} que reproduz a semântica do conjunto de instruções, e não da execução dos modelos \textit{Simulink}/\textit{Stateflow} da Seção~\ref{sec:stateflow-mbd}, que cobrem um subconjunto do repertório, com codificação própria de 8 \textit{bits}; a validação cruzada contra esses modelos não foi realizada.
 Segundo, a bancada implementa cinco entradas e dez saídas digitais e uma única entrada analógica ligada, e os sinais elétricos de PWM e da saída analógica não foram medidos, apenas lidos no depurador; a saída analógica opera de 0 a 3,3 V, sem o estágio de condicionamento para 0 a 10 V.
 Terceiro, a malha fechada com planta simulada não foi repetida no STM32F767ZI.
 Quarto, as medições de desempenho cobrem uma única configuração de compilação, e o caso de 10 \textit{rungs} não segue o comportamento linear dos demais.
