@@ -17,7 +17,7 @@ No formato genérico de operando (Figura~\ref{fig:formato-instrucao}), o \textit
 As instruções \texttt{PID}, \texttt{RAMP} e \texttt{PWM\_OUT} utilizam apenas o \textit{byte} 1 (índice da instância e base de tempo).
 Um opcode superior a \texttt{0x4B}, exceto \texttt{0x7F}, é inválido e provoca o estado de erro (\textit{trap}).
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|p{4.6cm}|c|p{6.4cm}|}
         \hline
@@ -36,14 +36,14 @@ Um opcode superior a \texttt{0x4B}, exceto \texttt{0x7F}, é inválido e provoca
         Demais instruções (fluxo, contatos, bobinas) & 4 \textit{bytes} & Nenhuma. \\
         \hline
     \end{tabular}
-    \caption{Tamanho das instruções e estrutura auxiliar}
+    \captionof{quadro}{Tamanho das instruções e estrutura auxiliar}
     \label{qua:ape-tamanhos}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 O Quadro~\ref{qua:ape-tipos} lista os tipos de operando, e o Quadro~\ref{qua:ape-subtipos} os sub-tipos que selecionam o membro de um bloco funcional.
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|c|l|p{7.6cm}|}
         \hline
@@ -75,12 +75,12 @@ O Quadro~\ref{qua:ape-tipos} lista os tipos de operando, e o Quadro~\ref{qua:ape
         \hline
     \end{tabular}
 
-    \caption{Tipos de operando}
+    \captionof{quadro}{Tipos de operando}
     \label{qua:ape-tipos}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|l|p{3.1cm}|p{7.3cm}|}
         \hline
@@ -104,14 +104,14 @@ O Quadro~\ref{qua:ape-tipos} lista os tipos de operando, e o Quadro~\ref{qua:ape
         \hline
     \end{tabular}
 
-    \caption{Sub-tipos de operando dos blocos funcionais}
+    \captionof{quadro}{Sub-tipos de operando dos blocos funcionais}
     \label{qua:ape-subtipos}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 Os parâmetros de entrada de \texttt{PWM}, \texttt{PID} e \texttt{RAMP} são escritos pela instrução \texttt{STW}, que grava em um membro de bloco o valor de uma fonte (registrador ou constante \textit{IEEE-754}) de forma incondicional a cada varredura; o Quadro~\ref{qua:ape-stw} lista os destinos.
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|c|p{5.5cm}|c|p{5.5cm}|}
         \hline
@@ -137,10 +137,10 @@ Os parâmetros de entrada de \texttt{PWM}, \texttt{PID} e \texttt{RAMP} são esc
         \hline
     \end{tabular}
 
-    \caption{Destinos da instrução \texttt{STW}}
+    \captionof{quadro}{Destinos da instrução \texttt{STW}}
     \label{qua:ape-stw}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 % ---------------------------------------------------------------------------- %
 \section{Instruções de controle de fluxo e pilhas}
@@ -148,7 +148,7 @@ Os parâmetros de entrada de \texttt{PWM}, \texttt{PID} e \texttt{RAMP} são esc
 
 A máquina mantém um acumulador booleano e uma pilha lógica de 16 posições, para ramificações, e uma pilha de blocos de 16 posições, para a associação de trechos de \textit{rung}.
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|l|c|p{9.4cm}|}
         \hline
@@ -171,10 +171,10 @@ A máquina mantém um acumulador booleano e uma pilha lógica de 16 posições, 
         \texttt{EOS} & \texttt{0x7F} & Fim de varredura: encerra o laço de execução. \\
         \hline
     \end{tabular}
-    \caption{Instruções de controle de fluxo e pilhas}
+    \captionof{quadro}{Instruções de controle de fluxo e pilhas}
     \label{qua:ape-fluxo}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 % ---------------------------------------------------------------------------- %
 \section{Contatos, lógica booleana e bobinas}
@@ -183,7 +183,7 @@ A máquina mantém um acumulador booleano e uma pilha lógica de 16 posições, 
 As instruções de \textit{bit} aceitam como operando os tipos \texttt{\%I}, \texttt{\%Q}, \texttt{\%M}, e os membros booleanos de temporizadores, contadores, blocos PID e RAMP.
 As instruções sensíveis a borda comparam o valor atual do operando com o da varredura anterior, mantido em um mapa de últimos valores.
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|l|c|p{9.4cm}|}
         \hline
@@ -230,16 +230,16 @@ As instruções sensíveis a borda comparam o valor atual do operando com o da v
         \texttt{TOGGLE} & \texttt{0x1A} & Inverte o operando a cada transição do acumulador de 0 para 1. \\
         \hline
     \end{tabular}
-    \caption{Contatos, lógica booleana e bobinas}
+    \captionof{quadro}{Contatos, lógica booleana e bobinas}
     \label{qua:ape-bit}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 % ---------------------------------------------------------------------------- %
 \section{Temporizadores e contadores}
 \label{sec:ape-isa-tc}
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|l|c|p{9.4cm}|}
         \hline
@@ -250,10 +250,10 @@ As instruções sensíveis a borda comparam o valor atual do operando com o da v
         \texttt{COUNT} & \texttt{0x1C} & Executa uma instância de contador (32 instâncias). Campos: tipo (\textit{CTU}, \textit{CTD} ou \textit{CTUD}), índice da instância e origem do valor programado (constante imediata ou registrador). Entradas \texttt{EN}, \texttt{CU}, \texttt{CD}, \texttt{RST} e \texttt{LOAD} armazenadas por \texttt{ST}; saídas \texttt{QU} (valor atual maior ou igual ao programado) e \texttt{QD} (valor atual não positivo); valor atual de 32 \textit{bits} com sinal. \\
         \hline
     \end{tabular}
-    \caption{Instruções de temporização e contagem}
+    \captionof{quadro}{Instruções de temporização e contagem}
     \label{qua:ape-tc}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 % ---------------------------------------------------------------------------- %
 \section{Aritmética, comparação, conversão e escalonamento}
@@ -263,7 +263,7 @@ As operações numéricas existem em duas versões, \textit{S32} (inteiro de 32 
 As operações binárias seguem o padrão \texttt{LDW} (carrega o primeiro operando no acumulador de palavra) seguido da operação com um segundo operando e gravação em um registrador de destino.
 Fontes aceitas em \textit{S32}: registrador, constante, temporizador e contador; em \textit{F32}: registrador, constante, blocos PID e RAMP (para usar um inteiro em contexto \textit{F32} aplica-se antes \texttt{ITOF}).
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|l|c|p{9.4cm}|}
         \hline
@@ -296,14 +296,14 @@ Fontes aceitas em \textit{S32}: registrador, constante, temporizador e contador;
         \texttt{MAX} & \texttt{0x35}/\texttt{0x36} & Máximo entre o acumulador e o operando $\rightarrow$ destino. \\
         \hline
     \end{tabular}
-    \caption{Aritmética e movimentação}
+    \captionof{quadro}{Aritmética e movimentação}
     \label{qua:ape-aritmetica}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 As instruções de comparação avaliam o acumulador de palavra contra um operando: se a relação for verdadeira, o acumulador booleano permanece inalterado; caso contrário, é zerado, o que permite compor comparações com contatos em série (Quadro~\ref{qua:ape-comparacao}).
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|l|c|p{9.4cm}|}
         \hline
@@ -328,16 +328,16 @@ As instruções de comparação avaliam o acumulador de palavra contra um operan
         \texttt{SCALE} & \texttt{0x45}/\texttt{0x46} & Escalonamento linear $out_{min} + (X - in_{min})\,(out_{max} - out_{min}) / (in_{max} - in_{min}) \rightarrow$ destino. $X$ pode ser registrador, constante ou entrada analógica; os quatro limites são constantes imediatas de 32 \textit{bits} (instrução de 20 \textit{bytes}, ou 24 se $X$ também for constante); sem escrita se $in_{min} = in_{max}$. \\
         \hline
     \end{tabular}
-    \caption{Comparação, conversão e escalonamento}
+    \captionof{quadro}{Comparação, conversão e escalonamento}
     \label{qua:ape-comparacao}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 % ---------------------------------------------------------------------------- %
 \section{Saídas analógicas, escrita em bloco e blocos de controle}
 \label{sec:ape-isa-blocos}
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|l|c|p{9.4cm}|}
         \hline
@@ -354,7 +354,7 @@ As instruções de comparação avaliam o acumulador de palavra contra um operan
         \texttt{RAMP} & \texttt{0x4B} & Executa uma instância do limitador de taxa de variação (16 instâncias): a saída persegue o valor alvo com taxa máxima de subida ou de descida por unidade de base de tempo; com \texttt{EN} desligado a saída é zero e, na borda de subida de \texttt{EN}, assume o valor inicial. \\
         \hline
     \end{tabular}
-    \caption{Saídas analógicas, escrita em bloco e blocos de controle}
+    \captionof{quadro}{Saídas analógicas, escrita em bloco e blocos de controle}
     \label{qua:ape-blocos}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}

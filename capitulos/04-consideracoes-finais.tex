@@ -11,13 +11,13 @@ A solução reúne um conjunto de 76 instruções, com palavra-base de 32 \texti
 Cada escolha de projeto foi acompanhada de justificativa (Quadro~\ref{qua:escolhas-projeto}).
 
 A validação seguiu um catálogo de casos de teste organizado por níveis (unidade, integração, sistema e desempenho) e cobrindo todos os grupos do repertório de instruções.
-Dos 220 passos de verificação funcional dos ensaios sobre a plataforma-alvo, 219 foram registrados como conformes, o que inclui a igualdade com a tabela-verdade em todas as combinações de entradas da lógica de contatos, a temporização e a contagem dentro das tolerâncias do critério de aceitação, resultados aritméticos exatos em \textit{S32} e dentro da tolerância relativa em \textit{F32}, e o comportamento do bloco PID; e todos os 52 pacotes malformados aplicados ao protocolo foram rejeitados com o código de \textit{NACK} previsto.
+Os 220 passos de verificação funcional dos ensaios sobre a plataforma-alvo foram todos registrados como conformes, o que inclui a igualdade com a tabela-verdade em todas as combinações de entradas da lógica de contatos, a temporização e a contagem dentro das tolerâncias do critério de aceitação, resultados aritméticos exatos em \textit{S32} e dentro da tolerância relativa em \textit{F32}, e o comportamento do bloco PID; e todos os 52 pacotes malformados aplicados ao protocolo foram rejeitados com o código de \textit{NACK} previsto.
 O processo de validação também revelou quatro defeitos de implementação e três divergências entre a especificação do conjunto de instruções e o \textit{firmware}, todos corrigidos (Quadro~\ref{qua:defeitos}), o que evidencia o valor de casos de teste que vão além do funcionamento nominal --- programas maiores que um pacote, pacotes malformados e transições de pilha.
 Quanto ao desempenho, na configuração de depuração do compilador o tempo de varredura cresce linearmente com o tamanho do programa, a cerca de 37~$\mu$s por \textit{rung} de cinco instruções, e o programa de tamanho máximo suportado leva menos de 10~ms por varredura; o \textit{firmware} ocupa 3,74\% da memória \textit{Flash} e 3,05\% da RAM.
 
 O Quadro~\ref{qua:atendimento-objetivos} relaciona os objetivos específicos ao que foi alcançado.
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \small
     \begin{tabular}{|p{5.4cm}|p{2.2cm}|p{6.6cm}|}
@@ -38,10 +38,10 @@ O Quadro~\ref{qua:atendimento-objetivos} relaciona os objetivos específicos ao 
         \hline
     \end{tabular}
 
-    \caption{Atendimento dos objetivos específicos}
+    \captionof{quadro}{Atendimento dos objetivos específicos}
     \label{qua:atendimento-objetivos}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 O objetivo geral foi atendido no que concerne à implementação e à validação funcional sobre a plataforma-alvo.
 A afirmação de fidelidade à IEC 61131-3 restringe-se ao subconjunto \textit{Ladder} ensaiado, e a de execução determinística se apoia na alocação estática, no despacho em tempo constante e na regularidade do tempo de varredura medido --- a razão entre o máximo e o mínimo ficou entre 1,25 e 1,30 nos programas de 50 a 200 \textit{rungs}, parte dela atribuível à própria variação das entradas durante o acionamento das chaves ---, sem uma análise estatística de variação (\textit{jitter}) da varredura.

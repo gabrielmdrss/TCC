@@ -15,6 +15,13 @@ Cada escolha de projeto é acompanhada de sua justificativa, reunidas no Quadro~
     rotulo/.style={font=\footnotesize, inner sep=1.5pt, fill=white}
 }
 
+% Ilustrações, quadros e tabelas fixos: permanecem exatamente onde estão no texto, logo após o parágrafo que os cita
+% (NBR 14724 e manual do IFPB-CG: "o mais próximo possível do trecho a que se refere"); o espaço acima e abaixo
+% é o mesmo (\textfloatsep) que o LaTeX usa nas figuras flutuantes.
+\newenvironment{figurafixa}{\par\vspace{\textfloatsep}\noindent\begin{minipage}{\textwidth}\centering}{\end{minipage}\par\vspace{\textfloatsep}}
+\newenvironment{quadrofixo}{\begin{figurafixa}}{\end{figurafixa}}
+\newenvironment{tabelafixa}{\begin{figurafixa}}{\end{figurafixa}}
+
 % Figura de captura de tela (Simulink/Stateflow): usa figuras/<nome>.png quando existir;
 % caso contrário, mostra um espaço reservado, para que o documento compile sem a imagem.
 \providecommand{\figuraImagem}[3]{%
@@ -33,7 +40,7 @@ O módulo de máquina virtual reúne o motor de execução e o conjunto de instr
 O programa do usuário é compilado para \textit{bytecode}, transferido ao dispositivo pelo protocolo serial e armazenado como dado somente leitura, de modo que a lógica de aplicação nunca acessa periféricos diretamente: ela é apenas percorrida pela máquina virtual, e esta, por sua vez, só interage com o \textit{hardware} através do contrato da camada de abstração.
 Essa fronteira única entre o motor de execução e o microcontrolador é o que torna o motor de execução independente da plataforma, conforme discutido na Seção~\ref{sec:fundamentos-solucao}.
 
-\begin{figure}[htb]
+\begin{figurafixa}
     \centering
     \begin{tikzpicture}[x=1cm,y=1cm]
         \node[bloco, fill=corApp, minimum width=10.4cm] (app) at (0,5.0) {Lógica de aplicação: \textit{bytecode} do usuário (dado somente leitura)};
@@ -52,17 +59,17 @@ Essa fronteira única entre o motor de execução e o microcontrolador é o que 
         \draw[seta] (hal) -- (mcu);
         \draw[seta, <->] (com) -- node[rotulo, above] {serial} (host);
     \end{tikzpicture}
-    \caption{Visão geral dos módulos do firmware e fronteira de portabilidade}
+    \captionof{figure}{Visão geral dos módulos do firmware e fronteira de portabilidade}
     \label{fig:arquitetura-geral}
 
     \fonte{Elaborado pelo autor (2026).}
-\end{figure}
+\end{figurafixa}
 
 O laço principal do firmware repete indefinidamente quatro etapas: a leitura das entradas físicas com filtro de \textit{debounce} configurável, a execução de uma varredura completa do \textit{bytecode} pela máquina virtual, a aplicação da imagem de saídas ao \textit{hardware} e o atendimento da comunicação.
 Esse ciclo de varredura (\textit{scan cycle}) reproduz, em software, o funcionamento cíclico de um CLP descrito na Seção~\ref{sec:tema} \cite{bolton:2015}.
 O Quadro~\ref{qua:recursos} reúne a capacidade dos recursos disponíveis ao programa do usuário, todos definidos por constantes de compilação e, portanto, ajustáveis sem alteração do motor de execução.
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|l|c|p{7.2cm}|}
         \hline
@@ -86,10 +93,10 @@ O Quadro~\ref{qua:recursos} reúne a capacidade dos recursos disponíveis ao pro
         \hline
     \end{tabular}
 
-    \caption{Recursos disponíveis ao programa do usuário}
+    \captionof{quadro}{Recursos disponíveis ao programa do usuário}
     \label{qua:recursos}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 
 %% ------------------------------------------------------------------------- %%
@@ -107,54 +114,55 @@ Os modelos em \textit{Simulink}/\textit{Stateflow} cumprem, neste trabalho, trê
 O modelo de nível superior (Figura~\ref{fig:simulink-modelo}) reproduz o ambiente de um CLP em simulação: chaves de entrada, reunidas por concatenação em um vetor de entradas físicas, alimentam um subsistema orquestrador, e o vetor de saídas por ele devolvido aciona lâmpadas indicadoras.
 O arranjo permite carregar um programa em \textit{bytecode} no modelo e observar o resultado das varreduras sem recorrer a qualquer \textit{hardware}.
 
-\begin{figure}[htb]
+\begin{figurafixa}
     \centering
     \figuraImagem{simulink-modelo-topo}{6.5cm}{Modelo \textit{Simulink} de nível superior: chaves de entrada, subsistema orquestrador (\textit{Main\_Orchestrator}) e lâmpadas de saída}
-    \caption{Modelo \textit{Simulink} de nível superior da máquina virtual}
+    \captionof{figure}{Modelo \textit{Simulink} de nível superior da máquina virtual}
     \label{fig:simulink-modelo}
 
     \fonte{Elaborado pelo autor (2026).}
-\end{figure}
+\end{figurafixa}
 
 O subsistema orquestrador contém um \textit{chart} \textit{Stateflow} cujo estado de mais alto nível (Figura~\ref{fig:stateflow-varredura}) é uma sequência de três estados, correspondentes às etapas do ciclo de varredura descrito na Seção~\ref{sec:visao-geral-implementacao}: leitura das entradas, em que as entradas físicas são copiadas para a imagem de entradas; execução da máquina virtual; e escrita das saídas, em que a imagem de saídas é copiada para as saídas físicas.
 Ao término da escrita das saídas, o ciclo recomeça.
 Separar as três etapas no modelo explicita uma propriedade do ciclo de varredura: o programa lê e escreve apenas as imagens, e a cópia de e para o mundo físico ocorre uma única vez por varredura.
 
-\begin{figure}[htb]
+\begin{figurafixa}
     \centering
     \figuraImagem{stateflow-varredura}{5.5cm}{\textit{Chart} \textit{Stateflow} de nível superior: estados de leitura das entradas, execução da máquina virtual e escrita das saídas}
-    \caption{Ciclo de varredura no \textit{chart} \textit{Stateflow}}
+    \captionof{figure}{Ciclo de varredura no \textit{chart} \textit{Stateflow}}
     \label{fig:stateflow-varredura}
 
     \fonte{Elaborado pelo autor (2026).}
-\end{figure}
+\end{figurafixa}
 
 O estado de execução decompõe o ciclo \textit{fetch-decode-execute} apresentado na Seção~\ref{sec:vm-isa} (Figura~\ref{fig:stateflow-execucao}).
 Um estado de busca lê a instrução apontada pelo contador de instruções; um estado de despacho seleciona, pela faixa em que se encontra o código da operação, a unidade funcional correspondente --- lógica, pilha, temporizadores, contadores ou controle de fluxo ---; cada unidade possui um estado por instrução, cujas ações de entrada avançam o contador de instruções, leem os operandos que se seguem à palavra-base e atualizam a pilha lógica e as imagens de entradas e saídas; e uma sinalização de conclusão devolve o controle ao despacho, que retorna à busca até que a instrução de fim de programa encerre a varredura.
-O Quadro~\ref{qua:correspondencia-modelo} associa os elementos do modelo aos da implementação.
 
-\begin{figure}[htb]
+\begin{figurafixa}
     \centering
     \figuraImagem{stateflow-execucao}{9.0cm}{Interior do estado de execução: busca, despacho (\textit{EXECUTION\_HUB}), unidades funcionais e término da varredura}
-    \caption{Decomposição do estado de execução da máquina virtual no \textit{chart} \textit{Stateflow}}
+    \captionof{figure}{Decomposição do estado de execução da máquina virtual no \textit{chart} \textit{Stateflow}}
     \label{fig:stateflow-execucao}
 
     \fonte{Elaborado pelo autor (2026).}
-\end{figure}
+\end{figurafixa}
 
 A Figura~\ref{fig:stateflow-unidade} detalha, como exemplo, a unidade de temporizadores.
 Cada instrução é um estado cujas transições são guardadas por condições sobre o acumulador lógico e sobre o acumulador do temporizador --- por exemplo, o \textit{TON} só incrementa o acumulador enquanto a entrada permanece verdadeira e o zera na condição contrária ---, o que torna a semântica de cada instrução legível diretamente no diagrama e confrontável com a especificação do \ref{ape:isa}.
 
-\begin{figure}[htb]
+\begin{figurafixa}
     \centering
     \figuraImagem{stateflow-unidade-temporizadores}{8.0cm}{Unidade de temporizadores (\textit{UNIT\_TIMERS}) com os estados das instruções \textit{TON}, \textit{TOF} e \textit{TP}}
-    \caption{Unidade de temporizadores no \textit{chart} \textit{Stateflow}}
+    \captionof{figure}{Unidade de temporizadores no \textit{chart} \textit{Stateflow}}
     \label{fig:stateflow-unidade}
 
     \fonte{Elaborado pelo autor (2026).}
-\end{figure}
+\end{figurafixa}
 
-\begin{quadro}[htb]
+O Quadro~\ref{qua:correspondencia-modelo} associa os elementos do modelo aos da implementação.
+
+\begin{quadrofixo}
     \centering
     \small
     \begin{tabular}{|p{5.6cm}|p{8.6cm}|}
@@ -179,10 +187,10 @@ Cada instrução é um estado cujas transições são guardadas por condições 
         \hline
     \end{tabular}
 
-    \caption{Correspondência entre os elementos do modelo e da implementação}
+    \captionof{quadro}{Correspondência entre os elementos do modelo e da implementação}
     \label{qua:correspondencia-modelo}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 O modelo foi construído antes do \textit{firmware}, com uma codificação preliminar de instruções de 8 \textit{bits} organizada em famílias --- carga, saída, lógica booleana, pilha, temporizadores, contadores e controle de fluxo ---, e cobre o subconjunto formado pelas cargas, saídas, lógica booleana, temporizadores e contadores.
 A \textit{ISA} definitiva (\ref{ape:isa}) amplia o repertório, adota a palavra-base de 32 \textit{bits} e acrescenta, entre outros, as bordas, a aritmética, os blocos de controle e as entradas e saídas analógicas; a equivalência entre os dois repertórios é a que o Quadro~\ref{qua:correspondencia-modelo} registra na estrutura, e não nos códigos de operação.
@@ -199,18 +207,18 @@ A abordagem foi estendida ao bloco PID, com ênfase diferente: no controlador, o
 Uma planta modelada em \textit{Simulink} é executada em tempo real e ligada, por um instrumento de aquisição analógica, ao microcontrolador, que executa o bloco PID do próprio \textit{firmware} --- ensaio \textit{Hardware-in-the-Loop} descrito no \ref{ape:pid}.
 A Figura~\ref{fig:simulink-hil} apresenta o modelo utilizado nesses ensaios.
 
-\begin{figure}[htb]
+\begin{figurafixa}
     \centering
     \figuraImagem{simulink-hil-planta}{6.5cm}{Modelo \textit{Simulink} da planta e da interface com o instrumento de aquisição analógica nos ensaios \textit{HIL}}
-    \caption{Modelo \textit{Simulink} da planta nos ensaios \textit{HIL} do bloco PID}
+    \captionof{figure}{Modelo \textit{Simulink} da planta nos ensaios \textit{HIL} do bloco PID}
     \label{fig:simulink-hil}
 
     \fonte{Elaborado pelo autor (2026).}
-\end{figure}
+\end{figurafixa}
 
 Da parte de modelagem, a máquina de modos do bloco PID é inteiramente especificada por estados e transições: quatro modos com prioridade estrita, avaliados nesta ordem a cada execução do bloco --- \textsc{Desabilitado}, \textsc{Reset}, \textsc{Manual} e \textsc{Automático} ---, como mostram a Figura~\ref{fig:stateflow-pid} e o Quadro~\ref{qua:estados-pid}.
 
-\begin{figure}[htb]
+\begin{figurafixa}
     \centering
     \begin{tikzpicture}[x=1cm,y=1cm]
         \node[diamond, draw, aspect=2.2, align=center, font=\footnotesize, inner sep=1pt, fill=corHW] (en) at (0,0) {\texttt{EN}?};
@@ -227,13 +235,13 @@ Da parte de modelagem, a máquina de modos do bloco PID é inteiramente especifi
         \draw[seta] (rs) -- node[rotulo, left] {sim} (res);
         \draw[seta] (mn) -- node[rotulo, left] {sim} (man);
     \end{tikzpicture}
-    \caption{Prioridade dos modos do bloco PID (especificação do \textit{chart} \textit{Stateflow})}
+    \captionof{figure}{Prioridade dos modos do bloco PID (especificação do \textit{chart} \textit{Stateflow})}
     \label{fig:stateflow-pid}
 
     \fonte{Elaborado pelo autor (2026).}
-\end{figure}
+\end{figurafixa}
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|l|p{4.6cm}|p{7.2cm}|}
         \hline
@@ -249,12 +257,10 @@ Da parte de modelagem, a máquina de modos do bloco PID é inteiramente especifi
         \hline
     \end{tabular}
 
-    \caption{Especificação da máquina de modos do bloco PID}
+    \captionof{quadro}{Especificação da máquina de modos do bloco PID}
     \label{qua:estados-pid}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
-
-\clearpage % encerra os flutuantes desta seção antes da seção seguinte
+\end{quadrofixo}
 
 
 %% ------------------------------------------------------------------------- %%
@@ -269,10 +275,10 @@ O terceiro é a cobertura de periféricos: conversores analógico-digitais de 12
 O quarto é o ferramental: a placa NUCLEO-F767ZI integra o depurador/gravador ST-LINK, dispensando sonda externa e disponibilizando um canal serial para o \textit{host} \cite{st:um1974}, e a ferramenta \textit{STM32CubeMX} gera a inicialização dos periféricos a partir de uma descrição gráfica.
 Como o desempenho do núcleo é superior ao necessário para o interpretador, espera-se que o tempo de varredura seja determinado pelo tamanho do programa do usuário e não pelo custo de interpretação, hipótese verificada pelos ensaios de desempenho descritos na Seção~\ref{sec:validacao-testes}.
 
-A Figura~\ref{fig:esboco-placa} apresenta o esboço, em blocos, da conexão entre a placa e o circuito de entradas e saídas.
+A Figura~\ref{fig:esboco-placa} apresenta o esboço, em blocos, da conexão entre a placa e o circuito de entradas e saídas, realizado pela plataforma didática MicroLAB descrita na Seção~\ref{sec:resultados-ensaios}.
 A atribuição individual de pinos adotada nos ensaios consta do Quadro~\ref{qua:pinagem} e não altera o contrato da camada de abstração.
 
-\begin{figure}[htb]
+\begin{figurafixa}
     \centering
     \begin{tikzpicture}[x=1cm,y=1cm]
         \node[bloco, fill=corHW, minimum width=3.6cm, minimum height=34mm] (mcu) at (0,0) {\textbf{NUCLEO-F767ZI}\\STM32F767ZI\\[2pt]GPIO\quad ADC\\TIM (PWM)\quad DAC\\USART + DMA};
@@ -290,11 +296,11 @@ A atribuição individual de pinos adotada nos ensaios consta do Quadro~\ref{qua
         \draw[seta] ([yshift=-8mm]mcu.east) -- ++(0.5,0) |- (ao.west);
         \draw[seta, <->] (mcu.south) -- node[rotulo, right] {porta serial virtual (ST-LINK)} (pc.north);
     \end{tikzpicture}
-    \caption{Esboço em blocos da conexão entre a placa-alvo e o circuito de entradas e saídas}
+    \captionof{figure}{Esboço em blocos da conexão entre a placa-alvo e o circuito de entradas e saídas}
     \label{fig:esboco-placa}
 
     \fonte{Elaborado pelo autor (2026), com base em \cite{st:um1974}.}
-\end{figure}
+\end{figurafixa}
 
 
 %% ------------------------------------------------------------------------- %%
@@ -308,7 +314,7 @@ O motor de execução implementa o ciclo \textit{fetch-decode-execute} apresenta
 A cada varredura, o contador de instruções é posicionado no início do \textit{bytecode}, a pilha lógica e o acumulador são zerados e a imagem de saídas retentivas é reaplicada; em seguida, cada instrução é lida da memória de programa (\textit{fetch}), tem o campo de opcode isolado (\textit{decode}) e é despachada para a rotina correspondente (\textit{execute}) até que a instrução de fim de varredura (\textit{EOS}) seja alcançada, como ilustra a Figura~\ref{fig:fetch-decode-execute}.
 Um opcode fora do repertório válido interrompe a varredura e leva a máquina ao estado de erro (\textit{trap}), no qual a execução permanece bloqueada, com um pino de sinalização acionado, até que um novo \textit{bytecode} seja transferido.
 
-\begin{figure}[htb]
+\begin{figurafixa}
     \centering
     \begin{tikzpicture}[x=1cm,y=1cm]
         \node[estado, fill=corHAL, minimum width=2.0cm] (ini) at (-6.6,0) {Início da\\varredura};
@@ -324,11 +330,11 @@ Um opcode fora do repertório válido interrompe a varredura e leva a máquina a
         \draw[seta] (exec.north) -- ++(0,0.9) -| node[rotulo, pos=0.25, above] {demais instruções} (fetch.north);
         \draw[seta] (decode.south) -- node[rotulo, right] {inválido} (trap.north);
     \end{tikzpicture}
-    \caption{Ciclo \textit{fetch-decode-execute} da máquina virtual}
+    \captionof{figure}{Ciclo \textit{fetch-decode-execute} da máquina virtual}
     \label{fig:fetch-decode-execute}
 
     \fonte{Elaborado pelo autor (2026).}
-\end{figure}
+\end{figurafixa}
 
 O despacho é feito por uma tabela de 128 posições, uma para cada valor possível do opcode de 7 \textit{bits}, cada uma apontando para a rotina da instrução.
 Essa escolha, em vez de uma cadeia de comparações sequenciais, torna o tempo de despacho constante --- acesso a um vetor --- e independente de qual instrução é executada, característica desejável para a previsibilidade do ciclo de varredura \cite{liu:2000,patterson:2020}.
@@ -354,7 +360,7 @@ Da mesma forma, as entradas de temporizadores e contadores (habilitação, conta
 Essa separação mantém a palavra-base pequena e o formato uniforme, ao custo de o comportamento de um bloco funcional depender de instruções que o precedem, o que orienta a composição dos programas de teste dos blocos (Seção~\ref{sec:validacao-testes}).
 O \ref{ape:isa} traz o tamanho de cada instrução.
 
-\begin{figure}[htb]
+\begin{figurafixa}
     \centering
     \begin{tikzpicture}[x=1cm,y=1cm, font=\footnotesize]
         \def\bw{0.44}
@@ -380,17 +386,17 @@ O \ref{ape:isa} traz o tamanho de cada instrução.
         \node[campo, fill=corHAL, minimum width=3.52cm] at (10.56,-0.8) {reservado};
         \node[anchor=west, font=\scriptsize, align=left] at (0,-1.5) {D: \textit{bit} de depuração (1); opcode (7); tipo, índices, sub-tipo e instância (4 \textit{bits} cada);\\ TB: base de tempo (2); res.: reservado (2); reservado (8).};
     \end{tikzpicture}
-    \caption{Formato da palavra-base de instrução (32 \textit{bits})}
+    \captionof{figure}{Formato da palavra-base de instrução (32 \textit{bits})}
     \label{fig:formato-instrucao}
 
     \fonte{Elaborado pelo autor (2026).}
-\end{figure}
+\end{figurafixa}
 
 O repertório contém 76 instruções, com opcodes de \texttt{0x00} a \texttt{0x4B}, além da instrução de fim de varredura (\texttt{0x7F}), organizadas nos grupos do Quadro~\ref{qua:grupos-instrucoes}.
 A lógica de contatos e bobinas segue o modelo de \textit{Instruction List} da norma IEC 61131-3 \cite{iec:2025}, com pilha lógica para ramificações e pilha de blocos para associações série e paralelo de trechos de \textit{rung}.
 A especificação de cada opcode, dos tipos de operando e dos sub-tipos de cada bloco funcional consta do \ref{ape:isa}.
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|p{6.1cm}|c|c|}
         \hline
@@ -416,10 +422,10 @@ A especificação de cada opcode, dos tipos de operando e dos sub-tipos de cada 
         \hline
     \end{tabular}
 
-    \caption{Grupos de instruções da máquina virtual}
+    \captionof{quadro}{Grupos de instruções da máquina virtual}
     \label{qua:grupos-instrucoes}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 \subsection{Blocos funcionais com estado}
 \label{sub:blocos-funcionais}
@@ -446,7 +452,7 @@ A banda morta é aplicada ao erro antes dos termos proporcional e integral, e a 
 Toda a memória do sistema é alocada estaticamente em tempo de compilação: não há alocação dinâmica nem coleta de lixo, o que elimina fragmentação e a variação de tempo que esses mecanismos introduziriam \cite{liu:2000}.
 Cada tipo de elemento endereçável possui um mapa dedicado --- imagens de entradas, saídas e memórias auxiliares (\textit{bits}), registradores de dados de 32 \textit{bits}, temporizadores, contadores, instâncias PID e RAMP, e entradas e saídas analógicas ---, e o programa do usuário os referencia apenas por tipo e índice, nunca por ponteiro, como mostra a Figura~\ref{fig:mapa-memoria}.
 
-\begin{figure}[htb]
+\begin{figurafixa}
     \centering
     \begin{tikzpicture}[x=1cm,y=1cm]
         \node[bloco, fill=corVM, minimum width=3.6cm, minimum height=60mm, font=\small] (vm) at (0,0) {\textbf{Máquina virtual}\\[6pt]\footnotesize acesso por tipo\\e índice, validado\\a cada operação};
@@ -461,11 +467,11 @@ Cada tipo de elemento endereçável possui um mapa dedicado --- imagens de entra
         \draw[seta, <->] (vm.east |- fb.west) -- (fb.west);
         \draw[seta, <->] (vm.east |- an.west) -- (an.west);
     \end{tikzpicture}
-    \caption{Regiões de memória e forma de acesso pela máquina virtual}
+    \captionof{figure}{Regiões de memória e forma de acesso pela máquina virtual}
     \label{fig:mapa-memoria}
 
     \fonte{Elaborado pelo autor (2026).}
-\end{figure}
+\end{figurafixa}
 
 Essa segregação materializa o ambiente de execução isolado descrito na Seção~\ref{sec:fundamentos-solucao}.
 O \textit{bytecode} é rejeitado se contiver opcode inválido, e as funções de acesso de cada mapa validam o índice a cada operação, e uma leitura fora da faixa retorna um valor neutro (falso ou zero) sem acessar memória, de modo que um erro de endereçamento na lógica do usuário não alcança memória fora das regiões alocadas nem o estado interno da máquina.
@@ -480,7 +486,7 @@ O contrato da camada de abstração expõe somente funções e tipos primitivos,
 É essa separação entre contrato e implementação que faz da camada o único ponto do firmware dependente do microcontrolador, e que reduz a adaptação a outra plataforma à reimplementação dela.
 O Quadro~\ref{qua:hal} associa cada grupo de funções ao periférico do STM32F767ZI que o implementa.
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|p{5.6cm}|p{8.6cm}|}
         \hline
@@ -500,10 +506,10 @@ O Quadro~\ref{qua:hal} associa cada grupo de funções ao periférico do STM32F7
         \hline
     \end{tabular}
 
-    \caption{Grupos de funções da camada de abstração e periféricos do STM32F767ZI}
+    \captionof{quadro}{Grupos de funções da camada de abstração e periféricos do STM32F767ZI}
     \label{qua:hal}
     \fonte{Elaborado pelo autor (2026), com base em \cite{st:ds11532,st:rm0410,st:um1974}.}
-\end{quadro}
+\end{quadrofixo}
 
 A implementação utiliza a biblioteca de \textit{HAL} fornecida pelo fabricante (\textit{STM32Cube HAL}), em vez do acesso direto a registradores (\textit{Low-Layer}), por dois motivos.
 O código de inicialização gerado pela ferramenta \textit{STM32CubeMX} reduz o risco de erro de configuração de registradores, cuja depuração consome tempo desproporcional ao ganho de desempenho da alternativa de baixo nível nesta aplicação; e, como a camada de abstração do projeto já é uma fronteira própria, o eventual sobrecusto da biblioteca do fabricante fica contido nela e não se propaga ao motor de execução.
@@ -525,7 +531,7 @@ O dispositivo mantém uma máquina de estados com três modos --- espera, transf
 A Figura~\ref{fig:protocolo-sequencia} apresenta a sequência de uma transferência de \textit{bytecode}.
 A autenticação do \textit{host} não faz parte do escopo desta monografia; a rejeição correta de quadros malformados é, portanto, a barreira de robustez do canal contra ruído e contra uso incorreto da ferramenta.
 
-\begin{figure}[!htb]
+\begin{figurafixa}
     \centering
     \begin{tikzpicture}[x=1cm,y=1cm]
         \node[bloco, fill=corApp, minimum width=3cm] (h) at (-4,0) {Ferramenta de \textit{host}};
@@ -540,11 +546,11 @@ A autenticação do \textit{host} não faz parte do escopo desta monografia; a r
         \draw[seta] (-4,-4.8) -- node[rotulo, above] {\texttt{STOP\_TRANSFER}} (4,-4.8);
         \draw[seta, dashed] (4,-5.5) -- node[rotulo, above] {\texttt{ACK} ou \texttt{NACK}} (-4,-5.5);
     \end{tikzpicture}
-    \caption{Sequência de uma transferência de \textit{bytecode}}
+    \captionof{figure}{Sequência de uma transferência de \textit{bytecode}}
     \label{fig:protocolo-sequencia}
 
     \fonte{Elaborado pelo autor (2026).}
-\end{figure}
+\end{figurafixa}
 
 
 %% ------------------------------------------------------------------------- %%
@@ -564,7 +570,7 @@ O resultado esperado (oráculo) provém de tabelas-verdade, de cálculos indepen
 Por fim, nos ensaios \textit{HIL} do \ref{ape:pid}, um instrumento de aquisição analógica (\textit{Analog Discovery 3}) mede a saída analógica e fecha a malha; nos ensaios sobre o STM32F767ZI, as entradas e as memórias são forçadas pelos comandos de depuração, e os valores das saídas PWM e analógica são lidos no depurador.
 A Figura~\ref{fig:fluxo-validacao} resume o fluxo de um caso de teste.
 
-\begin{figure}[htb]
+\begin{figurafixa}
     \centering
     \begin{tikzpicture}[x=1cm,y=1cm]
         \node[bloco, fill=corApp, minimum width=2.7cm] (prog) at (0,0) {Programa de\\teste (montador)};
@@ -583,17 +589,17 @@ A Figura~\ref{fig:fluxo-validacao} resume o fluxo de um caso de teste.
         \draw[seta] (est.north) -- (prog.south);
         \draw[seta] (est.east) -- ++(0.6,0) |- ([yshift=-4mm]run.south west) -- (run.south west);
     \end{tikzpicture}
-    \caption{Fluxo de execução e avaliação de um caso de teste}
+    \captionof{figure}{Fluxo de execução e avaliação de um caso de teste}
     \label{fig:fluxo-validacao}
 
     \fonte{Elaborado pelo autor (2026).}
-\end{figure}
+\end{figurafixa}
 
 O critério de aceitação depende do grupo: nas lógicas de contatos e bobinas exige-se igualdade bit a bit da imagem de saídas em todas as varreduras; nos temporizadores admite-se erro de até uma varredura mais a resolução da base de tempo; nas grandezas numéricas comparam-se os resultados com o cálculo do oráculo dentro da tolerância do tipo (exata para \textit{S32}, relativa para \textit{F32}).
 Os Quadros~\ref{qua:testes-logica} a~\ref{qua:testes-integracao} organizam a cobertura pelo repertório de instruções do Quadro~\ref{qua:grupos-instrucoes}, de modo que cada grupo tenha ao menos um caso associado.
 O conjunto completo foi conduzido sobre o STM32F767ZI, e a coluna de situação registra o estado de cada caso; os resultados constam da Seção~\ref{sec:resultados-ensaios}, do \ref{ape:pid} e do \ref{ape:protocolo}.
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \small\singlespacing\sloppy
     \begin{tabular}{|p{0.8cm}|p{3.2cm}|p{4.8cm}|p{2.8cm}|p{2.3cm}|}
@@ -611,12 +617,12 @@ O conjunto completo foi conduzido sobre o STM32F767ZI, e a coluna de situação 
         L5 & Lógica de \textit{rung} composta & Selo, intertravamento e partida-parada, combinando L1 a L4 & Modelo de referência & Executado \\
         \hline
     \end{tabular}
-    \caption{Casos de teste de lógica de contatos e bobinas}
+    \captionof{quadro}{Casos de teste de lógica de contatos e bobinas}
     \label{qua:testes-logica}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \small\singlespacing
     \begin{tabular}{|p{0.8cm}|p{3.2cm}|p{4.8cm}|p{2.8cm}|p{2.3cm}|}
@@ -634,12 +640,12 @@ O conjunto completo foi conduzido sobre o STM32F767ZI, e a coluna de situação 
         C2 & \textit{Reset} e carga (\textit{load}) & Prioridade entre \textit{reset}, carga e contagem; valor negativo & Norma IEC 61131-3 & Executado \\
         \hline
     \end{tabular}
-    \caption{Casos de teste de temporizadores e contadores}
+    \captionof{quadro}{Casos de teste de temporizadores e contadores}
     \label{qua:testes-temporizacao}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \small\singlespacing
     \begin{tabular}{|p{0.8cm}|p{3.2cm}|p{4.8cm}|p{2.8cm}|p{2.3cm}|}
@@ -657,12 +663,12 @@ O conjunto completo foi conduzido sobre o STM32F767ZI, e a coluna de situação 
         N5 & Conversão e escalonamento: \texttt{ITOF}, \texttt{FTOI}, \texttt{SCALE} & Pontos extremos e intermediários da faixa; operando constante e por registrador & Cálculo em \textit{Python} & Executado \\
         \hline
     \end{tabular}
-    \caption{Casos de teste de blocos numéricos}
+    \captionof{quadro}{Casos de teste de blocos numéricos}
     \label{qua:testes-numericos}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \small\singlespacing
     \begin{tabular}{|p{0.8cm}|p{3.2cm}|p{4.8cm}|p{2.8cm}|p{2.3cm}|}
@@ -678,12 +684,12 @@ O conjunto completo foi conduzido sobre o STM32F767ZI, e a coluna de situação 
         B3 & Bloco PID com entrada analógica real e em malha fechada (\textit{HIL}) & Variável de processo em AI2; cinco arquétipos de planta no \ref{ape:pid} & Cálculo do PID; modelo da planta & Executado (\textit{HIL} na plataforma de desenvolvimento) \\
         \hline
     \end{tabular}
-    \caption{Casos de teste de entradas e saídas analógicas e de blocos de controle}
+    \captionof{quadro}{Casos de teste de entradas e saídas analógicas e de blocos de controle}
     \label{qua:testes-controle}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \small\singlespacing
     \begin{tabular}{|p{0.8cm}|p{3.2cm}|p{4.8cm}|p{2.8cm}|p{2.3cm}|}
@@ -703,10 +709,10 @@ O conjunto completo foi conduzido sobre o STM32F767ZI, e a coluna de situação 
         P3 & Custo por grupo de instruções & Tempo de execução por instrução em cada grupo & Medição & Executado \\
         \hline
     \end{tabular}
-    \caption{Casos de teste de integração, robustez e desempenho}
+    \captionof{quadro}{Casos de teste de integração, robustez e desempenho}
     \label{qua:testes-integracao}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 
 %% ------------------------------------------------------------------------- %%
@@ -715,7 +721,7 @@ O conjunto completo foi conduzido sobre o STM32F767ZI, e a coluna de situação 
 
 Esta seção apresenta os resultados da execução do plano de testes da Seção~\ref{sec:validacao-testes} sobre o STM32F767ZI.
 Os 25 casos do catálogo foram conduzidos em 28 roteiros --- o caso L4 foi dividido em três (ramificações e pilhas de 16 e de 17 níveis) e o caso I3 em dois (opcode inválido e índice fora da faixa) ---, num total de 236 passos, dos quais 220 são verificações funcionais e 16 são medições de desempenho.
-Das 220 verificações, 219 foram registradas como conformes ao resultado esperado; o passo restante, a primeira conferência do ensaio do bloco PID com entrada analógica (saída de controle no limite inferior com o bloco desabilitado), não foi registrado.
+As 220 verificações foram registradas como conformes ao resultado esperado.
 
 Cada roteiro é uma sequência de passos.
 Em cada passo aplica-se um estímulo --- forçamento de entradas digitais, escrita em registradores e memórias auxiliares, ou uma tensão na entrada analógica --- e confere-se, na ferramenta de depuração, o valor das saídas e das variáveis observadas com o esperado.
@@ -727,20 +733,53 @@ O modelo não substitui o ensaio no \textit{hardware}: ele próprio foi conferid
 \subsection{Bancada de ensaio}
 \label{sub:bancada-ensaio}
 
-Os ensaios usaram a placa NUCLEO-F767ZI acoplada a uma placa externa de entradas e saídas, ligada ao computador pelo cabo USB do ST-LINK, que provê a gravação, a depuração e a porta serial virtual do protocolo (115200 \textit{baud}).
-A placa externa reúne cinco chaves, ligadas às entradas digitais I0 a I4, dez LEDs, ligados às saídas Q0 a Q9, e um LED de sinalização de erro da máquina virtual; uma peça impressa em 3D acopla a placa externa à NUCLEO.
-As entradas digitais usam o resistor de \textit{pull-down} interno do microcontrolador e são acionadas em nível alto.
-Das três entradas analógicas implementadas, apenas AI2 foi ligada, a uma fonte de tensão ajustável conferida com multímetro.
-Os sinais das saídas PWM e da saída analógica não foram medidos eletricamente: seus valores foram lidos na lista de monitoração da ferramenta de depuração.
-A Figura~\ref{fig:bancada} apresenta o arranjo e o Quadro~\ref{qua:pinagem} a alocação dos pinos.
+Os ensaios usaram a placa NUCLEO-F767ZI acoplada à plataforma didática MicroLAB, desenvolvida no IFPB para o ensino de eletrônica digital e sistemas embarcados \cite{ifpb:microlab2026}.
+A MicroLAB (Figura~\ref{fig:microlab}) reúne 16 chaves de entrada, com filtro antirruído e \textit{buffers} de isolamento, 16 LEDs de saída, também com \textit{buffers}, potenciômetros de referência analógica, \textit{displays}, relé, \textit{buzzer}, barramentos de alimentação protegidos contra curto-circuito e uma protoboard, e permite selecionar o nível lógico das saídas entre TTL (5~V) e CMOS (3,3~V) \cite{ifpb:microlab2026}.
+Nos ensaios, a plataforma foi configurada para o nível CMOS, compatível com a tensão dos pinos do microcontrolador, e foram usadas cinco chaves (A a E), ligadas às entradas digitais I0 a I4, dez LEDs, ligados às saídas Q0 a Q9, um LED de sinalização de erro da máquina virtual e um potenciômetro de referência, ligado à entrada analógica AI2.
 
-\begin{figure}[htb]
+\begin{figurafixa}
+    \includegraphics[width=0.55\textwidth]{microlab-placa}\hfill
+    \includegraphics[width=0.42\textwidth]{microlab-modelo}
+    \captionof{figure}{Plataforma didática MicroLAB IFPB: fotografia da placa (à esquerda) e modelo tridimensional (à direita)}
+    \label{fig:microlab}
+
+    \fonte{\citeonline{ifpb:microlab2026}.}
+\end{figurafixa}
+
+A placa NUCLEO-F767ZI é alojada em um suporte impresso em 3D, fixado por parafusos sobre a região da protoboard da MicroLAB, com aberturas para o acesso aos conectores de expansão da NUCLEO e para a passagem do cabo USB.
+Cabos de ligação levam os sinais dos conectores da NUCLEO às chaves, aos LEDs e ao potenciômetro da MicroLAB.
+A Figura~\ref{fig:suporte} mostra o suporte vazio e com a placa alojada.
+O computador é ligado à NUCLEO pelo cabo USB do ST-LINK, que provê a gravação, a depuração e a porta serial virtual do protocolo (115200 \textit{baud}).
+
+\begin{figurafixa}
+    \includegraphics[height=6.2cm]{suporte-vazio}\hspace{0.04\textwidth}
+    \includegraphics[height=6.2cm]{suporte-nucleo}
+    \captionof{figure}{Suporte impresso em 3D, vazio (à esquerda) e com a placa NUCLEO-F767ZI alojada (à direita)}
+    \label{fig:suporte}
+
+    \fonte{Elaborado pelo autor (2026).}
+\end{figurafixa}
+
+As entradas digitais usam o resistor de \textit{pull-down} interno do microcontrolador e são acionadas em nível alto.
+Das três entradas analógicas implementadas, apenas AI2 foi ligada, e a tensão aplicada foi conferida com multímetro.
+Os sinais das saídas PWM e da saída analógica não foram medidos eletricamente: seus valores foram lidos na lista de monitoração da ferramenta de depuração.
+A Figura~\ref{fig:montagem} mostra a bancada montada, a Figura~\ref{fig:bancada} apresenta o arranjo em blocos e o Quadro~\ref{qua:pinagem} a alocação dos pinos.
+
+\begin{figurafixa}
+    \includegraphics[width=0.7\textwidth]{bancada-montada}
+    \captionof{figure}{Bancada de ensaio montada: NUCLEO-F767ZI no suporte, sobre a MicroLAB}
+    \label{fig:montagem}
+
+    \fonte{Elaborado pelo autor (2026).}
+\end{figurafixa}
+
+\begin{figurafixa}
     \centering
     \begin{tikzpicture}[x=1cm,y=1cm]
         \node[bloco, fill=corHW, minimum width=3.4cm, minimum height=30mm] (mcu) at (0,0) {\textbf{NUCLEO-F767ZI}\\STM32F767ZI\\[2pt]GPIO\quad ADC\\TIM (PWM)\quad DAC\\USART + DMA};
-        \node[bloco, fill=corCom, minimum width=3.2cm] (ch) at (-5.8,1.0) {5 chaves\\(I0 a I4)};
-        \node[bloco, fill=corCom, minimum width=3.2cm] (ai) at (-5.8,-1.2) {Fonte ajustável\\(AI2, PC0)};
-        \node[bloco, fill=corMem, minimum width=3.2cm] (led) at (5.8,1.5) {10 LEDs\\(Q0 a Q9)};
+        \node[bloco, fill=corCom, minimum width=3.2cm] (ch) at (-5.8,1.0) {Chaves A a E\\(I0 a I4)};
+        \node[bloco, fill=corCom, minimum width=3.2cm] (ai) at (-5.8,-1.2) {Potenciômetro\\(AI2, PC0)};
+        \node[bloco, fill=corMem, minimum width=3.2cm] (led) at (5.8,1.5) {10 LEDs de saída\\(Q0 a Q9)};
         \node[bloco, fill=corErr, minimum width=3.2cm] (err) at (5.8,0.1) {LED de erro\\da VM (PB8)};
         \node[bloco, fill=corMem, minimum width=3.2cm] (pwm) at (5.8,-1.4) {PWM e saída\\analógica (depurador)};
         \node[bloco, fill=white, minimum width=3.4cm] (pc) at (0,-3.4) {Computador:\\ferramenta de \textit{host}};
@@ -751,22 +790,22 @@ A Figura~\ref{fig:bancada} apresenta o arranjo e o Quadro~\ref{qua:pinagem} a al
         \draw[seta] ([yshift=-8mm]mcu.east) -- ++(0.5,0) |- (pwm.west);
         \draw[seta, <->] (mcu.south) -- node[rotulo, right] {USB: ST-LINK (gravação, depuração e porta serial)} (pc.north);
     \end{tikzpicture}
-    \caption{Bancada de ensaio: placa NUCLEO-F767ZI, placa externa de chaves e LEDs e computador}
+    \captionof{figure}{Bancada de ensaio em blocos: NUCLEO-F767ZI, MicroLAB e computador}
     \label{fig:bancada}
 
     \fonte{Elaborado pelo autor (2026).}
-\end{figure}
+\end{figurafixa}
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \small
     \begin{tabular}{|p{4.4cm}|p{4.6cm}|p{5.2cm}|}
         \hline
         Recurso & Pino(s) & Observação \\
         \hline
-        Entradas digitais I0 a I4 & PD7, PD6, PD5, PD4 e PD3 & Chaves; \textit{pull-down} interno, ativas em nível alto \\
+        Entradas digitais I0 a I4 & PD7, PD6, PD5, PD4 e PD3 & Chaves A a E da MicroLAB; \textit{pull-down} interno, ativas em nível alto \\
         \hline
-        Saídas digitais Q0 a Q9 & PG9, PG14, PF15, PE13, PF14, PE11, PE9, PF13, PF12 e PD15 & LEDs indicadores \\
+        Saídas digitais Q0 a Q9 & PG9, PG14, PF15, PE13, PF14, PE11, PE9, PF13, PF12 e PD15 & LEDs de saída da MicroLAB \\
         \hline
         Entrada analógica AI2 & PC0 (ADC3, canal 10) & Única ligada; AI1 (PA3) e AI3 (PC3) disponíveis \\
         \hline
@@ -780,10 +819,10 @@ A Figura~\ref{fig:bancada} apresenta o arranjo e o Quadro~\ref{qua:pinagem} a al
         \hline
     \end{tabular}
 
-    \caption{Alocação dos pinos da placa-alvo usados nos ensaios}
+    \captionof{quadro}{Alocação dos pinos da placa-alvo usados nos ensaios}
     \label{qua:pinagem}
-    \fonte{Elaborado pelo autor (2026), com base em \cite{st:um1974}.}
-\end{quadro}
+    \fonte{Elaborado pelo autor (2026), com base em \cite{st:um1974,ifpb:microlab2026}.}
+\end{quadrofixo}
 
 %% ------------------------------------------------------------------------- %%
 \subsection{Resultados funcionais}
@@ -791,9 +830,9 @@ A Figura~\ref{fig:bancada} apresenta o arranjo e o Quadro~\ref{qua:pinagem} a al
 
 As Tabelas~\ref{tab:resultados-logica} e~\ref{tab:resultados-numerico} resumem, por caso, os passos executados e os conformes.
 
-\begin{table}[htb]
+\begin{tabelafixa}
     \centering
-    \caption{Passos executados e conformes: lógica, temporização e contagem}
+    \captionof{table}{Passos executados e conformes: lógica, temporização e contagem}
     \label{tab:resultados-logica}
     \begin{tabular}{p{8.2cm}cc}
         \hline
@@ -815,11 +854,11 @@ As Tabelas~\ref{tab:resultados-logica} e~\ref{tab:resultados-numerico} resumem, 
     \end{tabular}
     \vspace{14pt}
     \fonte{Elaborado pelo autor (2026).}
-\end{table}
+\end{tabelafixa}
 
-\begin{table}[htb]
+\begin{tabelafixa}
     \centering
-    \caption{Passos executados e conformes: numéricos, analógicos, controle e integração}
+    \captionof{table}{Passos executados e conformes: numéricos, analógicos, controle e integração}
     \label{tab:resultados-numerico}
     \begin{tabular}{p{8.2cm}cc}
         \hline
@@ -833,17 +872,17 @@ As Tabelas~\ref{tab:resultados-logica} e~\ref{tab:resultados-numerico} resumem, 
         A1 --- Entrada analógica, PWM e saída analógica & 7 & 7 \\
         B1 --- Bloco \textit{RAMP} & 9 & 9 \\
         B2 --- Bloco PID (unidade) & 11 & 11 \\
-        B3 --- Bloco PID com entrada analógica & 6 & 5 \\
+        B3 --- Bloco PID com entrada analógica & 6 & 6 \\
         I1 --- Transferência de \textit{bytecode} & 2 & 2 \\
         I2 --- Robustez do protocolo (52 casos de NACK) & 4 & 4 \\
         I3 --- Robustez da máquina virtual & 7 & 7 \\
         \hline
-        Total & 82 & 81 \\
+        Total & 82 & 82 \\
         \hline
     \end{tabular}
     \vspace{14pt}
     \fonte{Elaborado pelo autor (2026).}
-\end{table}
+\end{tabelafixa}
 
 Na lógica de contatos, as oito combinações de três entradas do caso L1 reproduziram a tabela-verdade nas dez saídas, e as dezesseis combinações de quatro entradas do caso L4 reproduziram os valores esperados das instruções \texttt{MPS}, \texttt{MRD}, \texttt{MPP}, \texttt{ANB} e \texttt{ORB}, inclusive nas ramificações aninhadas.
 No caso L2, \texttt{SET} e \texttt{RESET} retiveram o estado entre varreduras; o \texttt{RESET} prevaleceu sobre o \texttt{SET} na mesma varredura, por estar posicionado depois dele no programa; e o \texttt{TOGGLE} inverteu a saída e a memória apenas na borda de subida, sem repetir a inversão com a entrada mantida.
@@ -867,7 +906,7 @@ O valor bruto lido ficou dentro da tolerância de 20 contagens (0,5\% da escala 
 Como os sinais elétricos de PWM e da saída analógica não foram medidos, esses resultados atestam o valor calculado pela máquina virtual e entregue à camada de abstração, e não a forma de onda no pino.
 No bloco \textit{RAMP}, a saída assumiu o valor inicial na habilitação, subiu até o alvo à taxa programada de subida, desceu à taxa de descida e foi a zero com o bloco desabilitado, a menos de uma unidade das trajetórias esperadas.
 No bloco PID, os onze passos do caso B2 cobriram os modos (desabilitado, automático, manual e \textit{reset}), a saturação nos dois limites com os sinalizadores correspondentes, a banda morta, a ação integral e a transferência entre manual e automático sem salto.
-O caso B3, com a variável de processo lida da entrada analógica real, conferiu cinco de seis passos: saída de controle coerente com a soma da parcela proporcional e da integral, saturação em zero e \textit{reset}.
+O caso B3, com a variável de processo lida da entrada analógica real, conferiu os seis passos: saída de controle no limite inferior com o bloco desabilitado, saída de controle coerente com a soma da parcela proporcional e da integral, saturação em zero e \textit{reset}.
 A malha fechada com planta simulada (\textit{HIL}) foi executada na plataforma de desenvolvimento do firmware e consta do \ref{ape:pid}; sua repetição no STM32F767ZI não foi realizada.
 
 %% ------------------------------------------------------------------------- %%
@@ -879,7 +918,7 @@ No caso I2, um \textit{script} automatizado exercitou os quatro modos do protoco
 A primeira execução desse ensaio falhou, com uma versão anterior do \textit{firmware}, por um defeito na máquina de estados de conexão (Quadro~\ref{qua:defeitos}).
 No caso I3, um opcode inválido levou a máquina virtual ao estado de erro --- sem execução do programa e com a sinalização de erro piscando ---, e a gravação de um programa válido restabeleceu a operação; os acessos a instâncias inexistentes de temporizador e contador (índice 40) e de entrada analógica (índice 9) não provocaram falha, não afetaram as demais \textit{rungs} e resultaram em valor nulo.
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \small
     \begin{tabular}{|l|p{5.6cm}|p{4.8cm}|c|}
@@ -896,10 +935,10 @@ No caso I3, um opcode inválido levou a máquina virtual ao estado de erro --- s
         \hline
     \end{tabular}
 
-    \caption{Resultado do ensaio de robustez do protocolo (caso I2)}
+    \captionof{quadro}{Resultado do ensaio de robustez do protocolo (caso I2)}
     \label{qua:resultados-i2}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 %% ------------------------------------------------------------------------- %%
 \subsection{Desempenho}
@@ -909,9 +948,9 @@ Os ensaios de desempenho foram executados com o \textit{firmware} na configuraç
 O tempo de varredura (Tabela~\ref{tab:resultados-p1}) foi lido no valor de \textit{Tempo de Scan} da ferramenta de depuração, obtido do contador de ciclos do núcleo; o programa vazio leva 43~$\mu$s.
 O mínimo corresponde às entradas estáveis e o máximo, ao observado durante o acionamento das chaves.
 
-\begin{table}[htb]
+\begin{tabelafixa}
     \centering
-    \caption{Tempo de varredura em função do tamanho do programa}
+    \captionof{table}{Tempo de varredura em função do tamanho do programa}
     \label{tab:resultados-p1}
     \begin{tabular}{ccccc}
         \hline
@@ -925,7 +964,7 @@ O mínimo corresponde às entradas estáveis e o máximo, ao observado durante o
     \end{tabular}
     \vspace{14pt}
     \fonte{Elaborado pelo autor (2026).}
-\end{table}
+\end{tabelafixa}
 
 Cada \textit{rung} do programa de ensaio tem cinco instruções (\texttt{SOR}, \texttt{LD}, \texttt{AND}, \texttt{ANDN} e \texttt{OUT}).
 O ajuste linear aos programas de 50 a 200 \textit{rungs} resulta em cerca de $77 + 37{,}1\,n$~$\mu$s, com $n$ o número de \textit{rungs}: o tempo de varredura cresce linearmente com o tamanho do programa, como previsto, e o maior programa suportado (4096 bytes, cerca de 204 \textit{rungs}) leva de 7,5 a 9,4 ms por varredura.
@@ -934,9 +973,9 @@ A razão entre o máximo e o mínimo é de 1,25 a 1,30 nos programas de 50 a 200
 
 A Tabela~\ref{tab:resultados-p2} apresenta a ocupação de memória, lida no analisador de compilação do ambiente de desenvolvimento, na mesma configuração.
 
-\begin{table}[htb]
+\begin{tabelafixa}
     \centering
-    \caption{Ocupação de memória do \textit{firmware}}
+    \captionof{table}{Ocupação de memória do \textit{firmware}}
     \label{tab:resultados-p2}
     \begin{tabular}{lccc}
         \hline
@@ -948,15 +987,15 @@ A Tabela~\ref{tab:resultados-p2} apresenta a ocupação de memória, lida no ana
     \end{tabular}
     \vspace{14pt}
     \fonte{Elaborado pelo autor (2026).}
-\end{table}
+\end{tabelafixa}
 
 O custo por grupo de instruções (Tabela~\ref{tab:resultados-p3}) foi obtido por diferença: o tempo de varredura de programas com $N$ blocos repetidos de um mesmo grupo, descontado o do programa vazio ($T_0 = 43$~$\mu$s) e dividido por $N$, dá o custo bruto por bloco.
 Como cada bloco contém uma instrução \texttt{SOR} e uma \texttt{LD}, o custo desse par foi medido separadamente, com um programa de 100 blocos só com as duas instruções (1325~$\mu$s), resultando em 12,82~$\mu$s por par, e excluído do custo líquido.
 O custo líquido por instrução divide o líquido do bloco pelo número $k$ de instruções do grupo no bloco, sem \texttt{SOR} e \texttt{LD}; no bloco do PID, $k = 12$ (\texttt{ST} de habilitação, dez \texttt{STW} e a instrução \texttt{PID}), e no do \textit{RAMP}, $k = 7$.
 
-\begin{table}[htb]
+\begin{tabelafixa}
     \centering
-    \caption{Custo por grupo de instruções}
+    \captionof{table}{Custo por grupo de instruções}
     \label{tab:resultados-p3}
     \small
     \begin{tabular}{p{3.0cm}cccccc}
@@ -976,7 +1015,7 @@ O custo líquido por instrução divide o líquido do bloco pelo número $k$ de 
     \end{tabular}
     \vspace{14pt}
     \fonte{Elaborado pelo autor (2026).}
-\end{table}
+\end{tabelafixa}
 
 %% ------------------------------------------------------------------------- %%
 \subsection{Discussão}
@@ -985,7 +1024,7 @@ O custo líquido por instrução divide o líquido do bloco pelo número $k$ de 
 Todos os casos do catálogo foram executados sobre o STM32F767ZI, e os resultados funcionais confirmam o comportamento especificado para a lógica de contatos, temporização, contagem, aritmética, escalonamento e blocos de controle, além da robustez do protocolo e da máquina virtual diante de entradas inválidas.
 Os ensaios cumpriram também o papel de detecção de defeitos (Quadro~\ref{qua:defeitos}): quatro defeitos de implementação e três divergências de especificação foram revelados por casos de teste e corrigidos, e três deles --- o CRC encadeado, o tratamento do pacote em mais de um bloco e a máquina de estados de conexão --- só apareceram com programas maiores que um pacote ou com pacotes malformados, não com os casos funcionais mínimos.
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \small
     \begin{tabular}{|p{3.6cm}|p{5.4cm}|p{5.2cm}|}
@@ -1004,10 +1043,10 @@ Os ensaios cumpriram também o papel de detecção de defeitos (Quadro~\ref{qua:
         \hline
     \end{tabular}
 
-    \caption{Defeitos e divergências identificados durante a validação e sua correção}
+    \captionof{quadro}{Defeitos e divergências identificados durante a validação e sua correção}
     \label{qua:defeitos}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 O uso de memória (3,74\% da \textit{Flash} e 3,05\% da RAM) deixa margem ampla para programas e recursos adicionais.
 O tempo de varredura, cerca de 37~$\mu$s por \textit{rung} de cinco instruções, equivale a 9 a 15~$\mu$s por instrução (da ordem de 2000 a 3200 ciclos a 216 MHz) e é quase uniforme entre os grupos --- a aritmética \textit{F32} custa o mesmo que a \textit{S32}, consistente com a unidade de ponto flutuante em \textit{hardware}, e o par \texttt{SOR} e \texttt{LD} responde por cerca de 35\% do custo bruto de um bloco de lógica.
@@ -1026,10 +1065,10 @@ Essas limitações orientam as sugestões do Capítulo~\ref{cap:finais}.
 \label{sec:sintese-implementacao}
 
 Este capítulo apresentou a implementação da solução cujos fundamentos foram estabelecidos no Capítulo~\ref{cap:fundamentacao}: um motor de execução \textit{fetch-decode-execute} com palavra-base de instrução de 32 \textit{bits} e despacho em tempo constante; blocos funcionais com estado segregado em mapas de memória de acesso validado; uma camada de abstração que confina ao contrato de um único módulo toda a dependência do STM32F767ZI; um protocolo com enquadramento COBS e verificação CRC16; um modelo em \textit{Simulink}/\textit{Stateflow} da máquina virtual, que precede o \textit{firmware}, com extensão ao bloco PID nos ensaios \textit{HIL}; e uma estratégia de validação em quatro níveis, com cobertura de todos os grupos do repertório de instruções.
-A execução dos casos de teste sobre o STM32F767ZI (Seção~\ref{sec:resultados-ensaios}) confirmou o comportamento especificado em 219 das 220 verificações funcionais, rejeitou os 52 pacotes malformados com o código de \textit{NACK} esperado e mediu cerca de 37~$\mu$s por \textit{rung} de cinco instruções na configuração de depuração, além de revelar e permitir corrigir quatro defeitos de implementação.
+A execução dos casos de teste sobre o STM32F767ZI (Seção~\ref{sec:resultados-ensaios}) confirmou o comportamento especificado em todas as 220 verificações funcionais, rejeitou os 52 pacotes malformados com o código de \textit{NACK} esperado e mediu cerca de 37~$\mu$s por \textit{rung} de cinco instruções na configuração de depuração, além de revelar e permitir corrigir quatro defeitos de implementação.
 As escolhas de projeto e suas justificativas estão reunidas no Quadro~\ref{qua:escolhas-projeto}.
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|p{4.7cm}|p{9.7cm}|}
         \hline
@@ -1069,7 +1108,7 @@ As escolhas de projeto e suas justificativas estão reunidas no Quadro~\ref{qua:
         \hline
     \end{tabular}
 
-    \caption{Escolhas de projeto e justificativas}
+    \captionof{quadro}{Escolhas de projeto e justificativas}
     \label{qua:escolhas-projeto}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}

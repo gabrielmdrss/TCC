@@ -15,7 +15,7 @@ Como o motor de execução da máquina virtual não acessa periféricos fora do 
 Os testes de unidade e regressão cobrem sete cenários, identificados de A1 a A7 (caso B2 do Quadro~\ref{qua:testes-controle}), cada um definido por objetivo, procedimento numerado e critério de aceite, e executados diretamente na bancada, sem planta simulada.
 O Quadro~\ref{qua:ape-unidade-pid} resume os cenários.
 
-\begin{quadro}[htb]
+\begin{quadrofixo}
     \centering
     \begin{tabular}{|l|p{4.6cm}|p{7.6cm}|}
         \hline
@@ -37,10 +37,10 @@ O Quadro~\ref{qua:ape-unidade-pid} resume os cenários.
         \hline
     \end{tabular}
 
-    \caption{Testes de unidade e regressão do bloco PID}
+    \captionof{quadro}{Testes de unidade e regressão do bloco PID}
     \label{qua:ape-unidade-pid}
     \fonte{Elaborado pelo autor (2026).}
-\end{quadro}
+\end{quadrofixo}
 
 Os cenários A1 e A2 correspondem à correção de dois defeitos identificados durante o desenvolvimento do bloco.
 No primeiro, o bit \texttt{EN} era lido diretamente do acumulador lógico no instante da instrução \texttt{PID}, herdando o resultado de qualquer lógica anterior que reutilizasse o acumulador; a correção adotou o padrão já empregado por temporizadores e contadores, no qual o bit é armazenado por uma instrução \texttt{ST} dedicada, em \textit{rung} própria, e lido do mapa de memória do bloco.
@@ -55,7 +55,7 @@ O sinal de controle (\texttt{CV}) sai por uma saída analógica real e retorna, 
 O deslocamento de 0,3 V do conversor digital-analógico do instrumento é compensado no \textit{script} de ensaio.
 A Figura~\ref{fig:malha-hil} ilustra a malha.
 
-\begin{figure}[htb]
+\begin{figurafixa}
     \centering
     \begin{tikzpicture}[x=1cm,y=1cm]
         \node[bloco, fill=corVM, minimum width=3.0cm, minimum height=14mm, font=\footnotesize] (fw) at (0,0) {Máquina virtual\\(bloco PID no\\\textit{firmware})};
@@ -66,11 +66,11 @@ A Figura~\ref{fig:malha-hil} ilustra a malha.
         \draw[seta] ([yshift=-3mm]pl.west) -- node[rotulo, below=1pt, fill=none] {\texttt{PV}} ([yshift=-3mm]ad.east);
         \draw[seta] ([yshift=-3mm]ad.west) -- node[rotulo, below=1pt, fill=none] {\texttt{PV}} ([yshift=-3mm]fw.east);
     \end{tikzpicture}
-    \caption{Malha de ensaio \textit{Hardware-in-the-Loop}}
+    \captionof{figure}{Malha de ensaio \textit{Hardware-in-the-Loop}}
     \label{fig:malha-hil}
 
     \fonte{Elaborado pelo autor (2026).}
-\end{figure}
+\end{figurafixa}
 
 A malha é fechada pelo bloco PID do firmware, e não por um bloco de controle genérico do \textit{Simulink}, para que o algoritmo ensaiado seja exatamente o implementado --- com amostragem fixa, derivativo sobre a variável medida, anti-\textit{windup} por integração condicional e limitação de saída --- e não uma aproximação dele.
 
@@ -79,9 +79,9 @@ A escolha de $K_d = 0$ é deliberada: o termo derivativo, calculado sobre a vari
 O critério de acomodação é o primeiro instante, após o acionamento do controlador, a partir do qual $\lvert PV - SP \rvert \leq 2$ e a condição não é mais violada até o fim da janela de observação.
 A Tabela~\ref{tab:resultados-hil} apresenta os resultados, calculados automaticamente a partir dos registros dos ensaios.
 
-\begin{table}[htb]
+\begin{tabelafixa}
     \centering
-    \caption{Resultados dos ensaios HIL para os cinco arquétipos de planta}
+    \captionof{table}{Resultados dos ensaios HIL para os cinco arquétipos de planta}
     \label{tab:resultados-hil}
     \begin{tabular}{p{6.4cm}cp{4.2cm}}
         \hline
@@ -96,7 +96,7 @@ A Tabela~\ref{tab:resultados-hil} apresenta os resultados, calculados automatica
     \end{tabular}
     \vspace{14pt}
     \fonte{Elaborado pelo autor (2026).}
-\end{table}
+\end{tabelafixa}
 
 O arquétipo de atraso de transporte (planta 3) apresentou o pior caso da bateria, com \textit{overshoot} de 47,2\% e sinal de ciclo-limite, com a saída de controle saturando repetidamente em zero.
 O resultado é esperado teoricamente, já que o atraso de transporte reduz a margem de fase mais severamente do que a lentidão isolada (planta 2) ou a ausência de autorregulação (planta 4), mas a sua magnitude só foi conhecida pelo ensaio.
@@ -109,6 +109,5 @@ O caso evidencia que a bateria de cinco arquétipos expõe, de forma quantificad
 
 Sobre o STM32F767ZI, o bloco PID foi ensaiado em dois roteiros do catálogo de testes (Quadro~\ref{qua:testes-controle}), com a variável de processo e o \textit{setpoint} impostos por forçamento de memória ou, no segundo, por uma tensão real na entrada analógica AI2, e a saída de controle (\texttt{CV}) e os sinalizadores lidos na lista de monitoração da ferramenta de depuração.
 No roteiro de unidade (caso B2), os onze passos --- que cobrem os modos desabilitado, automático, manual e \textit{reset}, a saturação nos dois limites, a banda morta, a ação integral e a transferência entre manual e automático sem salto --- foram conformes.
-No roteiro com entrada analógica (caso B3), com $K_p = 0{,}4$, $K_i = 0{,}05$, período de amostragem de 100~ms, \textit{setpoint} igual a 50 e saída limitada entre 0 e 100, cinco dos seis passos foram registrados como conformes: com variável de processo nula, a saída de controle seguiu a soma da parcela proporcional (20) e da integral (cerca de 25 após 2~s); com a variável de processo em 50, a parcela proporcional se anulou e a integral deixou de crescer; com a variável de processo em 100, a saída saturou em zero e o sinalizador de limite inferior foi acionado; e o \textit{reset} zerou o integrador e a saída, que voltou a ser calculada ao soltá-lo.
-O passo restante, a conferência inicial com o bloco desabilitado, não foi registrado.
+No roteiro com entrada analógica (caso B3), com $K_p = 0{,}4$, $K_i = 0{,}05$, período de amostragem de 100~ms, \textit{setpoint} igual a 50 e saída limitada entre 0 e 100, os seis passos foram registrados como conformes: com o bloco desabilitado, a saída de controle ficou no limite inferior; com variável de processo nula, a saída de controle seguiu a soma da parcela proporcional (20) e da integral (cerca de 25 após 2~s); com a variável de processo em 50, a parcela proporcional se anulou e a integral deixou de crescer; com a variável de processo em 100, a saída saturou em zero e o sinalizador de limite inferior foi acionado; e o \textit{reset} zerou o integrador e a saída, que voltou a ser calculada ao soltá-lo.
 Como a saída analógica da plataforma não foi medida eletricamente, a malha com planta simulada (Seção~\ref{sec:ape-pid-hil}) não foi repetida no STM32F767ZI.
