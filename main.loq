@@ -29,10 +29,11 @@
 \contentsline {quadro}{\numberline {A.9}{\ignorespaces Comparação, conversão e escalonamento}}{52}{quadro.A.9}%
 \contentsline {quadro}{\numberline {A.10}{\ignorespaces Saídas analógicas, escrita em bloco e blocos de controle}}{53}{quadro.A.10}%
 \addvspace {10\p@ }
-\contentsline {quadro}{\numberline {B.1}{\ignorespaces Testes de unidade e regressão do bloco PID}}{54}{quadro.B.1}%
+\contentsline {quadro}{\numberline {B.1}{\ignorespaces Testes de unidade e regressão do bloco PID}}{55}{quadro.B.1}%
+\contentsline {quadro}{\numberline {B.2}{\ignorespaces Modelos das plantas simuladas nos ensaios \textit {HIL}}}{56}{quadro.B.2}%
 \addvspace {10\p@ }
-\contentsline {quadro}{\numberline {C.1}{\ignorespaces Códigos de \textit {NACK} obtidos no modo de conexão (7 casos)}}{58}{quadro.C.1}%
-\contentsline {quadro}{\numberline {C.2}{\ignorespaces Códigos de \textit {NACK} obtidos no modo ocioso (7 casos)}}{58}{quadro.C.2}%
-\contentsline {quadro}{\numberline {C.3}{\ignorespaces Códigos de \textit {NACK} obtidos no modo de transferência (12 casos)}}{59}{quadro.C.3}%
-\contentsline {quadro}{\numberline {C.4}{\ignorespaces Códigos de \textit {NACK} obtidos no modo de depuração (26 casos)}}{59}{quadro.C.4}%
+\contentsline {quadro}{\numberline {C.1}{\ignorespaces Códigos de \textit {NACK} obtidos no modo de conexão (7 casos)}}{62}{quadro.C.1}%
+\contentsline {quadro}{\numberline {C.2}{\ignorespaces Códigos de \textit {NACK} obtidos no modo ocioso (7 casos)}}{62}{quadro.C.2}%
+\contentsline {quadro}{\numberline {C.3}{\ignorespaces Códigos de \textit {NACK} obtidos no modo de transferência (12 casos)}}{63}{quadro.C.3}%
+\contentsline {quadro}{\numberline {C.4}{\ignorespaces Códigos de \textit {NACK} obtidos no modo de depuração (26 casos)}}{63}{quadro.C.4}%
 \contentsfinish 

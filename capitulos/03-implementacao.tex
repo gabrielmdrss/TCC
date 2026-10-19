@@ -105,7 +105,7 @@ O Quadro~\ref{qua:recursos} reúne a capacidade dos recursos disponíveis ao pro
 
 A metodologia de \textit{Model-Based Design}, fundamentada na Seção~\ref{sec:fundamentos-solucao}, prescreve que o comportamento esperado do sistema seja descrito por um modelo executável antes da implementação, e que esse modelo sirva de referência para validar o código dela resultante \cite{nicolescu:2009}.
 Por essa razão, a modelagem é a primeira etapa da implementação: precede o desenvolvimento do \textit{firmware} e independe do microcontrolador, de modo que as decisões nela tomadas --- a estrutura do ciclo de varredura, a separação entre busca, decodificação e execução, e o estado que cada instrução manipula --- orientam a organização da máquina virtual descrita nas seções seguintes.
-Os modelos em \textit{Simulink}/\textit{Stateflow} cumprem, neste trabalho, três papéis: especificam, de forma executável, o comportamento da máquina virtual como um todo (Subseção~\ref{sub:modelo-vm}); servem de referência para a validação cruzada da máquina virtual embarcada (Seção~\ref{sec:validacao-testes}); e, em conjunto com modelos de planta, fecham a malha dos ensaios \textit{Hardware-in-the-Loop} do bloco PID, extensão da abordagem voltada à simulação com o \textit{hardware} e não à modelagem do bloco (Subseção~\ref{sub:modelo-pid}).
+Os modelos em \textit{Simulink}/\textit{Stateflow} cumprem, neste trabalho, três papéis: especificam, de forma executável, o comportamento da máquina virtual como um todo (Subseção~\ref{sub:modelo-vm}); servem de referência para a validação cruzada da máquina virtual embarcada (Seção~\ref{sec:validacao-testes}); e reproduzem, em malha aberta, as plantas dos ensaios \textit{Hardware-in-the-Loop} do bloco PID, extensão da abordagem voltada à simulação com o \textit{hardware} e não à modelagem do bloco (Subseção~\ref{sub:modelo-pid}).
 
 %% ------------------------------------------------------------------------- %%
 \subsection{Modelo da máquina virtual}
@@ -205,13 +205,13 @@ Nos ensaios sobre o STM32F767ZI (Seção~\ref{sec:validacao-testes}), o papel de
 \label{sub:modelo-pid}
 
 A abordagem foi estendida ao bloco PID, com ênfase diferente: no controlador, o interesse da simulação está menos em especificar o algoritmo do que em ensaiá-lo em malha fechada.
-Uma planta modelada em \textit{Simulink} é executada em tempo real e ligada, por um instrumento de aquisição analógica, ao microcontrolador, que executa o bloco PID do próprio \textit{firmware} --- ensaio \textit{Hardware-in-the-Loop} descrito no \ref{ape:pid}.
-A Figura~\ref{fig:simulink-hil} apresenta o modelo utilizado nesses ensaios.
+Uma planta, descrita por um modelo matemático, é executada em tempo real em uma rotina do \textit{MATLAB} e ligada, por um instrumento de aquisição analógica, ao microcontrolador, que executa o bloco PID do próprio \textit{firmware} --- ensaio \textit{Hardware-in-the-Loop} descrito no \ref{ape:pid}.
+O mesmo modelo de planta é reproduzido em \textit{Simulink}, em malha aberta e sem o controlador, para analisar isoladamente a sua resposta; a Figura~\ref{fig:simulink-hil} apresenta o modelo da planta de primeira ordem rápida.
 
 \begin{figurafixa}
     \centering
-    \figuraImagem{simulink-hil-planta}{6.5cm}{Modelo \textit{Simulink} da planta e da interface com o instrumento de aquisição analógica nos ensaios \textit{HIL}}
-    \captionof{figure}{Modelo \textit{Simulink} da planta nos ensaios \textit{HIL} do bloco PID}
+    \figuraImagem{simulink-hil-planta}{6.5cm}{Modelo \textit{Simulink} da planta de primeira ordem rápida, em malha aberta: degrau de potência, ganho, temperatura ambiente, chave entre as constantes de tempo de aquecimento e resfriamento, integrador e saturação}
+    \captionof{figure}{Modelo \textit{Simulink} da planta de primeira ordem rápida dos ensaios \textit{HIL}, em malha aberta}
     \label{fig:simulink-hil}
 
     \fonte{Elaborado pelo autor (2026).}

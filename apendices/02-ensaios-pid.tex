@@ -5,15 +5,16 @@
 \addtocontents{toc}{\protect\let\protect\numberline\protect\numberlineorig}
 
 Este apêndice registra os ensaios realizados sobre o bloco PID descrito na Seção~\ref{sub:blocos-funcionais} e cuja máquina de modos é especificada na Subseção~\ref{sub:modelo-pid}: testes de unidade e regressão e ensaios em malha fechada com \textit{Hardware-in-the-Loop} (\textit{HIL}).
-Ambos foram executados na plataforma de desenvolvimento do firmware, e uma parte deles foi repetida no STM32F767ZI (Seção~\ref{sec:ape-pid-stm32}).
-Como o motor de execução da máquina virtual não acessa periféricos fora do contrato da camada de abstração (Seção~\ref{sec:hal-implementacao}), o comportamento validado independe do microcontrolador; a repetição dos ensaios de unidade e do ensaio com entrada analógica real no STM32F767ZI consta da Seção~\ref{sec:ape-pid-stm32}; a malha fechada com planta simulada não foi repetida nessa plataforma.
+Os ensaios em malha fechada foram executados na plataforma de desenvolvimento do firmware, e os cenários de unidade e o ensaio com entrada analógica real têm registro no STM32F767ZI (Seção~\ref{sec:ape-pid-stm32}).
+Como o motor de execução da máquina virtual não acessa periféricos fora do contrato da camada de abstração (Seção~\ref{sec:hal-implementacao}), o comportamento validado independe do microcontrolador; o registro dos ensaios de unidade e do ensaio com entrada analógica real no STM32F767ZI consta da Seção~\ref{sec:ape-pid-stm32}, e os registros da malha fechada com planta simulada apresentados na Seção~\ref{sec:ape-pid-hil} são os da plataforma de desenvolvimento.
 
 % ---------------------------------------------------------------------------- %
 \section{Testes de unidade e regressão}
 \label{sec:ape-pid-unidade}
 
-Os testes de unidade e regressão cobrem sete cenários, identificados de A1 a A7 (caso B2 do Quadro~\ref{qua:testes-controle}), cada um definido por objetivo, procedimento numerado e critério de aceite, e executados diretamente na bancada, sem planta simulada.
+Os testes de unidade e regressão cobrem sete cenários, identificados de A1 a A7 (caso B2 do Quadro~\ref{qua:testes-controle}), cada um definido por objetivo, procedimento numerado e critério de aceite, para execução diretamente na bancada, sem planta simulada.
 O Quadro~\ref{qua:ape-unidade-pid} resume os cenários.
+Eles foram aplicados durante o desenvolvimento do bloco, sem registro passo a passo; o registro formal consta da repetição no STM32F767ZI (Seção~\ref{sec:ape-pid-stm32}), cujo roteiro de unidade cobre os modos, a saturação, a banda morta, a ação integral e a transferência sem salto.
 
 \begin{quadrofixo}
     \centering
@@ -52,7 +53,6 @@ No segundo, o campo de sub-tipo, de apenas 4 \textit{bits} (16 valores), era ind
 
 Os ensaios em malha fechada validam o bloco PID com o firmware em execução no microcontrolador, ligado por um instrumento de aquisição analógica (\textit{Analog Discovery 3}) a uma planta simulada em tempo real no \textit{MATLAB}.
 O sinal de controle (\texttt{CV}) sai por uma saída analógica real e retorna, após ser processado pelo modelo da planta, por uma entrada analógica real; a física do processo é o único elemento virtual, o que caracteriza o ensaio como \textit{HIL} \cite{isermann:1999}.
-O deslocamento de 0,3 V do conversor digital-analógico do instrumento é compensado no \textit{script} de ensaio.
 A Figura~\ref{fig:malha-hil} ilustra a malha.
 
 \begin{figurafixa}
@@ -72,12 +72,41 @@ A Figura~\ref{fig:malha-hil} ilustra a malha.
     \fonte{Elaborado pelo autor (2026).}
 \end{figurafixa}
 
-A malha é fechada pelo bloco PID do firmware, e não por um bloco de controle genérico do \textit{Simulink}, para que o algoritmo ensaiado seja exatamente o implementado --- com amostragem fixa, derivativo sobre a variável medida, anti-\textit{windup} por integração condicional e limitação de saída --- e não uma aproximação dele.
+A malha é fechada pelo bloco PID do firmware, e não por um bloco de controle genérico do \textit{Simulink}, para que o algoritmo ensaiado seja exatamente o implementado --- com amostragem fixa, derivativo sobre a variável medida, anti-\textit{windup} por integração condicional (\textit{clamping}) e limitação de saída --- e não uma aproximação dele.
 
 O mesmo controlador, com ganhos fixos $K_p = 0{,}4$, $K_i = 0{,}05$ e $K_d = 0$, foi ensaiado contra cinco arquétipos clássicos de processo, escolhidos por cobrirem, em conjunto, as dinâmicas usuais da prática de controle: primeira ordem rápida, primeira ordem lenta (para expor o \textit{windup} integral), primeira ordem com atraso de transporte (o modelo mais comum de processo industrial), integrador puro (processo sem autorregulação) e segunda ordem subamortecida (processos mecânicos ressonantes).
 A escolha de $K_d = 0$ é deliberada: o termo derivativo, calculado sobre a variável medida, amplifica diretamente o ruído do conversor analógico-digital \cite{astrom:2006}.
-O critério de acomodação é o primeiro instante, após o acionamento do controlador, a partir do qual $\lvert PV - SP \rvert \leq 2$ e a condição não é mais violada até o fim da janela de observação.
-A Tabela~\ref{tab:resultados-hil} apresenta os resultados, calculados automaticamente a partir dos registros dos ensaios.
+As plantas são modelos matemáticos, integrados pelo método de \textit{Euler} com o passo medido a cada iteração de um laço de 20~Hz, e a temperatura simulada é limitada fisicamente a 0 a 150~°C.
+O Quadro~\ref{qua:plantas-hil} reúne os modelos, nos quais $u$ é a potência normalizada (de 0 a 1), $T$ é a temperatura simulada e $T_{amb}$ é a temperatura ambiente.
+
+\begin{quadrofixo}
+    \centering
+    \small
+    \begin{tabular}{|p{3.2cm}|p{6.2cm}|p{4.8cm}|}
+        \hline
+        Planta & Modelo & Parâmetros \\
+        \hline
+        1 --- Primeira ordem rápida & $\dot{T} = \dfrac{T_{alvo} - T}{\tau}$, com $T_{alvo} = T_{amb} + K\,u$ & $\tau = 5$~s (aquecimento e resfriamento); $T_{amb} = 23$~°C; $K = 127$~°C; $T(0) = 23$~°C \\
+        \hline
+        2 --- Primeira ordem lenta & Idêntico ao da planta 1 & $\tau = 90$~s; demais parâmetros iguais \\
+        \hline
+        3 --- Atraso de transporte & $T(s) = T_{amb} + \dfrac{K\,e^{-Ls}}{\tau s + 1}\,u(s)$ & $\tau = 10$~s; $L = 3$~s; $T_{amb}$ e $K$ iguais \\
+        \hline
+        4 --- Integrador puro & $\dot{T} = K_I\,(u - u_0)$ & $K_I = 3{,}0$~°C/s; $u_0 = 0{,}30$; $T(0) = 50$~°C \\
+        \hline
+        5 --- Segunda ordem subamortecida & $\dfrac{T(s)}{T_{alvo}(s)} = \dfrac{\omega_n^2}{s^2 + 2\zeta\omega_n s + \omega_n^2}$, com $T_{alvo} = T_{amb} + K\,u$ & $\omega_n = 1$~rad/s; $\zeta = 0{,}3$; $T_{amb}$ e $K$ iguais; $T(0) = 23$~°C \\
+        \hline
+    \end{tabular}
+
+    \captionof{quadro}{Modelos das plantas simuladas nos ensaios \textit{HIL}}
+    \label{qua:plantas-hil}
+    \fonte{Elaborado pelo autor (2026).}
+\end{quadrofixo}
+
+Em cada ensaio, a referência foi fixada em $SP = 50$ e o bloco foi habilitado cerca de 10~s depois do início do registro, que durou 90~s, com cerca de 30~ms entre amostras.
+A variável de processo, de 0 a 150~°C, é apresentada à controladora como uma tensão de 0 a 4,5~V; a saída de controle, de 0 a 100, é aplicada ao conversor sem escalonamento, de modo que cada unidade de \texttt{CV} corresponde a 1~V na saída analógica --- limitada a 10~V --- e a 10\% da potência da planta, e valores de \texttt{CV} acima de 10 resultam na atuação máxima.
+O sobressinal é calculado como $\max(PV - SP, 0)/SP \times 100$ a partir da habilitação, e o critério de acomodação é o primeiro instante, após o acionamento do controlador, a partir do qual $\lvert PV - SP \rvert \leq 2$ e a condição não é mais violada até o fim da janela de observação.
+A Tabela~\ref{tab:resultados-hil} apresenta os resultados, calculados automaticamente a partir dos registros dos ensaios, e a Figura~\ref{fig:hil-comparativo} sobrepõe a variável de processo das cinco plantas.
 
 \begin{tabelafixa}
     \centering
@@ -98,10 +127,55 @@ A Tabela~\ref{tab:resultados-hil} apresenta os resultados, calculados automatica
     \fonte{Elaborado pelo autor (2026).}
 \end{tabelafixa}
 
-O arquétipo de atraso de transporte (planta 3) apresentou o pior caso da bateria, com \textit{overshoot} de 47,2\% e sinal de ciclo-limite, com a saída de controle saturando repetidamente em zero.
+\begin{figurafixa}
+    \centering
+    \includegraphics[width=0.9\textwidth]{hil-comparativo}
+    \captionof{figure}{Resposta da variável de processo das cinco plantas com o mesmo controlador ($SP = 50$; bloco habilitado em $t = 10$~s)}
+    \label{fig:hil-comparativo}
+
+    \fonte{Elaborado pelo autor (2026).}
+\end{figurafixa}
+
+O arquétipo de atraso de transporte (planta 3) apresentou o pior caso da bateria, com \textit{overshoot} de 47,2\% e sinal de ciclo-limite, com a saída de controle saturando repetidamente em zero (Figura~\ref{fig:hil-planta3}).
+
+\begin{figurafixa}
+    \centering
+    \includegraphics[width=0.9\textwidth]{hil-planta3}
+    \captionof{figure}{Planta 3 (atraso de transporte) com os ganhos originais: variável de processo (acima) e saída de controle (abaixo)}
+    \label{fig:hil-planta3}
+
+    \fonte{Elaborado pelo autor (2026).}
+\end{figurafixa}
+
 O resultado é esperado teoricamente, já que o atraso de transporte reduz a margem de fase mais severamente do que a lentidão isolada (planta 2) ou a ausência de autorregulação (planta 4), mas a sua magnitude só foi conhecida pelo ensaio.
-Aplicou-se então um reajuste de ganhos a essa planta, com base na heurística clássica $T_i \approx \tau + 2L$ para processos com atraso de transporte: $K_p = 0{,}4$ e $K_i = 0{,}05$ foram alterados para $K_p = 0{,}3$ e $K_i = 0{,}02$, o que reduziu o \textit{overshoot} de 47,2\% para 0,10\% e o tempo de acomodação de 80,1~s (sem convergência plena na janela) para 16,0~s.
+Aplicou-se então um reajuste de ganhos a essa planta, com base na heurística clássica $T_i \approx \tau + 2L$ para processos com atraso de transporte: $K_p = 0{,}4$ e $K_i = 0{,}05$ foram alterados para $K_p = 0{,}3$ e $K_i = 0{,}02$, o que reduziu o \textit{overshoot} de 47,2\% para 0,10\% e o tempo de acomodação de 80,1~s (sem convergência plena na janela) para 16,0~s (Figura~\ref{fig:hil-ajuste}).
+
+\begin{figurafixa}
+    \centering
+    \includegraphics[width=0.9\textwidth]{hil-ajuste-planta3}
+    \captionof{figure}{Planta 3 (atraso de transporte) antes e depois do reajuste de ganhos}
+    \label{fig:hil-ajuste}
+
+    \fonte{Elaborado pelo autor (2026).}
+\end{figurafixa}
+
 O caso evidencia que a bateria de cinco arquétipos expõe, de forma quantificada, uma fragilidade de sintonia que a validação em malha aberta ou com uma única planta não revelaria: o mesmo controlador, com os mesmos ganhos, comporta-se de forma satisfatória em quatro das cinco plantas e é criticamente subamortecido na quinta, o que confirma que a sintonia de um PID depende do processo, e não apenas do algoritmo.
+
+Um último ensaio exercitou o seguimento de referência com a planta de primeira ordem rápida, com a referência fornecida por um potenciômetro e variada manualmente (Figura~\ref{fig:hil-sp-variavel}): a referência partiu de cerca de 50~°C, subiu para 70~°C entre 30~s e 35~s e desceu para cerca de 33~°C entre 60~s e 64~s.
+A variável de processo acompanhou as duas transições com o atraso característico de primeira ordem --- erro absoluto médio de 0,2~°C no patamar de 70~°C --- e, na descida, a saída de controle caiu a zero, pois a planta perde calor apenas pela própria dinâmica de resfriamento, sem atuação ativa, de modo que a variável de processo só alcançou a referência ao fim da janela (35,6~°C contra 34,9~°C aos 90~s).
+
+\begin{figurafixa}
+    \centering
+    \includegraphics[width=0.9\textwidth]{hil-sp-variavel}
+    \captionof{figure}{Planta 1 com referência variável: variável de processo e referência (acima) e saída de controle (abaixo)}
+    \label{fig:hil-sp-variavel}
+
+    \fonte{Elaborado pelo autor (2026).}
+\end{figurafixa}
+
+Os ensaios têm limites que convém registrar.
+A janela de 90~s equivale a uma constante de tempo da planta 2, de modo que, embora a métrica tenha indicado acomodação dentro dela, o comportamento de longo prazo dessa planta não foi verificado; a descida pelo \textit{reset} não foi ensaiada nas plantas 2 a 5; o ruído presente na malha vem apenas do conversor da controladora, já que a planta é simulada; e os ganhos reajustados da planta 3 resultaram de uma primeira tentativa por heurística, e não de uma otimização.
+Os registros brutos de cada ensaio, os modelos de planta e os gráficos acompanham o repositório do firmware.
 
 % ---------------------------------------------------------------------------- %
 \section{Repetição no STM32F767ZI}
@@ -110,4 +184,14 @@ O caso evidencia que a bateria de cinco arquétipos expõe, de forma quantificad
 Sobre o STM32F767ZI, o bloco PID foi ensaiado em dois roteiros do catálogo de testes (Quadro~\ref{qua:testes-controle}), com a variável de processo e o \textit{setpoint} impostos por forçamento de memória ou, no segundo, por uma tensão real na entrada analógica AI2, e a saída de controle (\texttt{CV}) e os sinalizadores lidos na lista de monitoração da ferramenta de depuração.
 No roteiro de unidade (caso B2), os onze passos --- que cobrem os modos desabilitado, automático, manual e \textit{reset}, a saturação nos dois limites, a banda morta, a ação integral e a transferência entre manual e automático sem salto --- foram conformes.
 No roteiro com entrada analógica (caso B3), com $K_p = 0{,}4$, $K_i = 0{,}05$, período de amostragem de 100~ms, \textit{setpoint} igual a 50 e saída limitada entre 0 e 100, os seis passos foram registrados como conformes: com o bloco desabilitado, a saída de controle ficou no limite inferior; com variável de processo nula, a saída de controle seguiu a soma da parcela proporcional (20) e da integral (cerca de 25 após 2~s); com a variável de processo em 50, a parcela proporcional se anulou e a integral deixou de crescer; com a variável de processo em 100, a saída saturou em zero e o sinalizador de limite inferior foi acionado; e o \textit{reset} zerou o integrador e a saída, que voltou a ser calculada ao soltá-lo.
-Como a saída analógica da plataforma não foi medida eletricamente, a malha com planta simulada (Seção~\ref{sec:ape-pid-hil}) não foi repetida no STM32F767ZI.
+Os registros quantitativos da malha fechada com planta simulada, apresentados na Seção~\ref{sec:ape-pid-hil}, são os da plataforma de desenvolvimento do firmware.
+A Figura~\ref{fig:bancada-hil} mostra a bancada do STM32F767ZI com o instrumento de aquisição analógica ao lado da MicroLAB.
+
+\begin{figurafixa}
+    \centering
+    \includegraphics[width=0.8\textwidth]{bancada-stm32-ad3}
+    \captionof{figure}{Bancada do STM32F767ZI sobre a MicroLAB, com o instrumento de aquisição analógica \textit{Analog Discovery 3} à esquerda}
+    \label{fig:bancada-hil}
+
+    \fonte{Elaborado pelo autor (2026).}
+\end{figurafixa}
